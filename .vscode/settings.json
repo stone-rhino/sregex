@@ -1,0 +1,6 @@
+{
+    "C_Cpp.intelliSenseCacheSize": 0,
+    "files.exclude": {
+        "src/parser/.antlr": true
+    }
+}
