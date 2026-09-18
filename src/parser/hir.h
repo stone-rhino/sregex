@@ -20,24 +20,38 @@
  */
 #pragma once
 
+#include <cstring>
 #include <expected>
 #include <memory>
 #include <string>
 #include <string_view>
 
+#include "hir_kind.h"
+
 namespace Sregex::Parser {
-class Visitor;
-class Hir {
-public:
-  Hir(const std::string& pattern);
-  Hir(std::string_view pattern);
-  Hir(const char* pattern, size_t length);
+// The properties associated with an HIR
+struct HirProperties {
+  uint32_t min_length_;
+  uint32_t max_length_;
+  bool utf8_;
+  bool literal_;
+};
 
-public:
-private:
-  std::expected<void, std::string> parse(const char* pattern, size_t length);
+struct Hir {
+  // The underlying HIR kind
+  HirKind kind;
+  // The properties of this HIR
+  HirProperties properties_;
 
-private:
-  std::unique_ptr<Visitor> visitor_;
+  static std::expected<std::unique_ptr<Hir>, std::string> parse(const std::string& pattern) {
+    return parse(pattern.data(), pattern.size());
+  }
+  static std::expected<std::unique_ptr<Hir>, std::string> parse(std::string_view pattern) {
+    return parse(pattern.data(), pattern.size());
+  }
+  static std::expected<std::unique_ptr<Hir>, std::string> parse(const char* pattern) {
+    return parse(pattern, std::strlen(pattern));
+  }
+  static std::expected<std::unique_ptr<Hir>, std::string> parse(const char* pattern, size_t length);
 };
 } // namespace Sregex::Parser

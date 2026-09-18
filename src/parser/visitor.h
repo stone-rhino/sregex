@@ -24,9 +24,12 @@
 #include "hir.h"
 
 namespace Sregex::Parser {
-class Visitor : public Antlr4Gen::PCREBaseVisitor {
+class Visitor final : public Antlr4Gen::PCREBaseVisitor {
 public:
   Visitor(Hir& hir);
+
+protected:
+  std::any visitExpr(Antlr4Gen::PCREParser::ExprContext* ctx) override;
 
 private:
   Hir& hir_;

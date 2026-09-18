@@ -18,9 +18,13 @@
  * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "gtest/gtest.h"
 #include <iostream>
 
+#include "gtest/gtest.h"
+#include "parser/hir.h"
+
 TEST(HirTest, BasicParse) {
-    std::cout << "hello world!" << std::endl;
+  auto result = Sregex::Parser::Hir::parse("helloworld");
+  ASSERT_TRUE(result.has_value());
+  auto hir = std::move(result).value();
 }

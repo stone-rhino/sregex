@@ -24,4 +24,6 @@ namespace Sregex::Parser {
 
 Visitor::Visitor(Hir& hir) : hir_(hir) {}
 
+std::any Visitor::visitExpr(Antlr4Gen::PCREParser::ExprContext* ctx) { return std::any(); }
+
 } // namespace Sregex::Parser

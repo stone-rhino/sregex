@@ -65,13 +65,7 @@ public:
   std::string error_msg;
 };
 
-Hir::Hir(const std::string& pattern) : Hir(pattern.data(), pattern.size()) {}
-
-Hir::Hir(std::string_view pattern) : Hir(pattern.data(), pattern.size()) {}
-
-Hir::Hir(const char* pattern, size_t length) : visitor_(std::make_unique<Visitor>(*this)) {}
-
-std::expected<void, std::string> Hir::parse(const char* pattern, size_t length) {
+std::expected<std::unique_ptr<Hir>, std::string> Hir::parse(const char* pattern, size_t length) {
   // Initialize
   antlr4::ANTLRInputStream input(pattern, length);
   Antlr4Gen::PCRELexer lexer(&input);
@@ -91,13 +85,14 @@ std::expected<void, std::string> Hir::parse(const char* pattern, size_t length) 
   auto tree = parser.pcre();
 
   // Visit
-  std::string error = std::any_cast<std::string>(visitor_->visit(tree));
-
-  if (!error.empty()) {
-    return std::unexpected(error);
+  std::unique_ptr<Hir> hir = std::make_unique<Hir>();
+  Visitor visitor(*hir);
+  std::any result = visitor.visit(tree);
+  if (result.type() == typeid(std::string)) {
+    return std::unexpected(std::any_cast<std::string>(result));
   }
 
-  return {};
+  return hir;
 }
 
 } // namespace Sregex::Parser
