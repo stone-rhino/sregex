@@ -30,6 +30,9 @@
 namespace Sregex::Parser {
 struct Hir;
 
+// The kind representing an empty expression, which matches everything, including the empty string.
+struct EmptyKind {};
+
 // The kind representing a literal string
 struct LiteralKind : public std::string {};
 
@@ -75,12 +78,29 @@ struct CaptureKind {
 };
 
 // The kind representing a concatenation of subexpressions
-struct ConcatKind : public std::vector<std::unique_ptr<Hir>> {};
+struct ConcatKind : public std::vector<std::unique_ptr<Hir>> {
+private:
+  using Base = std::vector<std::unique_ptr<Hir>>;
+
+public:
+  using Base::Base;
+};
 
 // The kind representing an alternation of subexpressions
 struct AlternationKind : public std::vector<std::unique_ptr<Hir>> {};
 
 // The variant type representing all possible kinds of HIR nodes
-using HirKind = std::variant<LiteralKind, UnicodeClassKind, ByteClassKind, LookKind, RepetitionKind,
-                             CaptureKind, ConcatKind, AlternationKind>;
+struct HirKind
+    : public std::variant<EmptyKind, LiteralKind, UnicodeClassKind, ByteClassKind, LookKind,
+                          RepetitionKind, CaptureKind, ConcatKind, AlternationKind> {
+private:
+  using Base = std::variant<EmptyKind, LiteralKind, UnicodeClassKind, ByteClassKind, LookKind,
+                            RepetitionKind, CaptureKind, ConcatKind, AlternationKind>;
+
+public:
+  using Base::Base;
+  template <typename T> bool is() const { return std::holds_alternative<T>(*this); }
+  template <typename T> T& as() { return std::get<T>(*this); }
+  template <typename T> const T& as() const { return std::get<T>(*this); }
+};
 } // namespace Sregex::Parser

@@ -31,10 +31,10 @@
 namespace Sregex::Parser {
 // The properties associated with an HIR
 struct HirProperties {
-  uint32_t min_length_;
-  uint32_t max_length_;
-  bool utf8_;
-  bool literal_;
+  uint32_t min_length_{0};
+  uint32_t max_length_{0};
+  bool utf8_{false};
+  bool literal_{false};
 };
 
 struct Hir {

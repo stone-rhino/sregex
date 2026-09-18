@@ -23,8 +23,25 @@
 #include "gtest/gtest.h"
 #include "parser/hir.h"
 
-TEST(HirTest, BasicParse) {
-  auto result = Sregex::Parser::Hir::parse("helloworld");
+TEST(HirTest, EmptyKind) {
+  auto result = Sregex::Parser::Hir::parse("");
+  if (!result) {
+    std::cerr << result.error() << std::endl;
+  }
   ASSERT_TRUE(result.has_value());
+
   auto hir = std::move(result).value();
+  ASSERT_TRUE(std::holds_alternative<Sregex::Parser::EmptyKind>(hir->kind));
+}
+
+TEST(HirTest, LiteralKind) {
+  auto result = Sregex::Parser::Hir::parse("helloworld123\\a");
+  if (!result) {
+    std::cerr << result.error() << std::endl;
+  }
+  ASSERT_TRUE(result.has_value());
+
+  auto hir = std::move(result).value();
+  ASSERT_TRUE(std::holds_alternative<Sregex::Parser::LiteralKind>(hir->kind));
+  EXPECT_EQ(std::get<Sregex::Parser::LiteralKind>(hir->kind), "helloworld123\a");
 }

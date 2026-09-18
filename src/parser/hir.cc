@@ -82,14 +82,18 @@ std::expected<std::unique_ptr<Hir>, std::string> Hir::parse(const char* pattern,
   lexer.addErrorListener(&lexer_error_listener);
 
   // Parse
-  auto tree = parser.pcre();
+  auto ast = parser.pcre();
 
   // Visit
   std::unique_ptr<Hir> hir = std::make_unique<Hir>();
-  Visitor visitor(*hir);
-  std::any result = visitor.visit(tree);
-  if (result.type() == typeid(std::string)) {
-    return std::unexpected(std::any_cast<std::string>(result));
+  if (length != 0) {
+    Visitor visitor(*hir);
+    std::any result = visitor.visit(ast);
+    if (result.type() == typeid(std::string)) {
+      return std::unexpected(std::any_cast<std::string>(result));
+    }
+  } else {
+    hir->kind = EmptyKind{};
   }
 
   return hir;

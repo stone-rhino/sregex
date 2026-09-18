@@ -21,17 +21,26 @@
 #pragma once
 
 #include "antlr4_gen/PCREBaseVisitor.h"
-#include "hir.h"
+#include <expected>
 
 namespace Sregex::Parser {
+class Hir;
 class Visitor final : public Antlr4Gen::PCREBaseVisitor {
 public:
   Visitor(Hir& hir);
 
 protected:
+  bool shouldVisitNextChild(antlr4::tree::ParseTree*, const std::any&) override {
+    return should_visit_next_child_;
+  }
   std::any visitExpr(Antlr4Gen::PCREParser::ExprContext* ctx) override;
 
 private:
+  void appendToLiteral(const std::string& text);
+  std::expected<std::string, std::string> decodeEscape(const std::string& text);
+
+private:
   Hir& hir_;
+  bool should_visit_next_child_{true};
 };
 } // namespace Sregex::Parser
