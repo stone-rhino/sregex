@@ -36,20 +36,12 @@ struct EmptyKind {};
 // The kind representing a literal string
 struct LiteralKind : public std::string {};
 
-// The kind representing a Unicode character class
+// The kind representing a unicode character class
 struct UnicodeClassKind {
-  // The starting code point of the Unicode character class
+  // The starting code point of the unicode character class
   uint32_t start_;
-  // The ending code point of the Unicode character class
+  // The ending code point of the unicode character class
   uint32_t end_;
-};
-
-// The kind representing a byte character class
-struct ByteClassKind {
-  // The starting byte of the byte character class
-  uint8_t start_;
-  // The ending byte of the byte character class
-  uint8_t end_;
 };
 
 // The kind representing a lookahead or lookbehind assertion
@@ -90,12 +82,11 @@ public:
 struct AlternationKind : public std::vector<std::unique_ptr<Hir>> {};
 
 // The variant type representing all possible kinds of HIR nodes
-struct HirKind
-    : public std::variant<EmptyKind, LiteralKind, UnicodeClassKind, ByteClassKind, LookKind,
-                          RepetitionKind, CaptureKind, ConcatKind, AlternationKind> {
+struct HirKind : public std::variant<EmptyKind, LiteralKind, UnicodeClassKind, LookKind,
+                                     RepetitionKind, CaptureKind, ConcatKind, AlternationKind> {
 private:
-  using Base = std::variant<EmptyKind, LiteralKind, UnicodeClassKind, ByteClassKind, LookKind,
-                            RepetitionKind, CaptureKind, ConcatKind, AlternationKind>;
+  using Base = std::variant<EmptyKind, LiteralKind, UnicodeClassKind, LookKind, RepetitionKind,
+                            CaptureKind, ConcatKind, AlternationKind>;
 
 public:
   using Base::Base;

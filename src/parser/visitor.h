@@ -20,8 +20,9 @@
  */
 #pragma once
 
-#include "antlr4_gen/PCREBaseVisitor.h"
 #include <expected>
+
+#include "antlr4_gen/PCREBaseVisitor.h"
 
 namespace Sregex::Parser {
 class Hir;
@@ -36,8 +37,15 @@ protected:
   std::any visitExpr(Antlr4Gen::PCREParser::ExprContext* ctx) override;
 
 private:
-  void appendToLiteral(const std::string& text);
-  std::expected<std::string, std::string> decodeEscape(const std::string& text);
+  [[nodiscard]]
+  std::expected<void, std::string> buildLiteral(const std::string& text, bool escape = false);
+  [[nodiscard]]
+  std::expected<void, std::string>
+  buildUnicodeClass(Antlr4Gen::PCREParser::Character_classContext* ctx);
+  [[nodiscard]]
+  std::expected<std::string, std::string> decodeEscapeCharacter(const std::string& text);
+  [[nodiscard]]
+  std::expected<std::string, std::string> decodeEscapeCharacterType(const std::string& text);
 
 private:
   Hir& hir_;

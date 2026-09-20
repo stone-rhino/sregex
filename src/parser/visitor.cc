@@ -20,14 +20,26 @@
  */
 #include "visitor.h"
 
+#include <cassert>
+#include <codecvt>
 #include <format>
 
 #include "hir.h"
 
 #define RETURN_ERROR(msg)                                                                          \
-  should_visit_next_child_ = false;                                                                \
-  return std::format("[{}:{}] {}", ctx->getStart()->getLine(),                                     \
-                     ctx->getStart()->getCharPositionInLine(), msg);
+  do {                                                                                             \
+    should_visit_next_child_ = false;                                                              \
+    return std::format("[{}:{}] {}", ctx->getStart()->getLine(),                                   \
+                       ctx->getStart()->getCharPositionInLine(), msg);                             \
+  } while (0)
+
+#define RETURN_IF_ERROR(expr)                                                                      \
+  do {                                                                                             \
+    auto result = (expr);                                                                          \
+    if (!result) {                                                                                 \
+      RETURN_ERROR(result.error());                                                                \
+    }                                                                                              \
+  } while (0)
 
 namespace Sregex::Parser {
 
@@ -38,10 +50,6 @@ std::any Visitor::visitExpr(Antlr4Gen::PCREParser::ExprContext* ctx) {
   auto& concat = hir_.kind.as<ConcatKind>();
 
   for (auto* element : ctx->element()) {
-    if (element == nullptr || element->atom() == nullptr) {
-      RETURN_ERROR("unsupported expr element");
-    }
-
     auto* atom = element->atom();
     if (atom->option_setting() != nullptr) {
       RETURN_ERROR("unsupported option setting");
@@ -61,25 +69,35 @@ std::any Visitor::visitExpr(Antlr4Gen::PCREParser::ExprContext* ctx) {
       RETURN_ERROR("unsupported subroutine_reference");
     } else if (atom->conditional_pattern() != nullptr) {
       RETURN_ERROR("unsupported conditional_pattern");
-    } else if (atom->comment() != nullptr) {
-      // Skip comments
+    }
+
+    // Skip comments
+    else if (atom->comment() != nullptr) {
       continue;
-    } else if (atom->character() != nullptr) {
-      auto result = decodeEscape(atom->character()->getText());
-      if (!result) {
-        RETURN_ERROR(result.error());
-      }
-      appendToLiteral(result.value());
+    }
+
+    // \a or \c or other escape sequences
+    else if (atom->character() != nullptr) {
+      RETURN_IF_ERROR(buildLiteral(atom->character()->getText(), true));
     } else if (atom->character_type() != nullptr) {
       RETURN_ERROR("unsupported character_type");
-    } else if (atom->character_class() != nullptr) {
-      RETURN_ERROR("unsupported character_class");
+    }
+
+    // [abc] or [^abc] or [a-z] etc.
+    else if (atom->character_class() != nullptr) {
+      RETURN_IF_ERROR(buildUnicodeClass(atom->character_class()));
     } else if (atom->posix_character_class() != nullptr) {
       RETURN_ERROR("unsupported posix_character_class");
-    } else if (atom->letter() != nullptr) {
-      appendToLiteral(atom->letter()->getText());
-    } else if (atom->digit() != nullptr) {
-      appendToLiteral(atom->digit()->getText());
+    }
+
+    // Single letters like 'a', 'b', 'c', etc.
+    else if (atom->letter() != nullptr) {
+      RETURN_IF_ERROR(buildLiteral(atom->letter()->getText()));
+    }
+
+    // Single digits like '0', '1', '2', etc.
+    else if (atom->digit() != nullptr) {
+      RETURN_IF_ERROR(buildLiteral(atom->digit()->getText()));
     } else if (atom->anchor() != nullptr) {
       RETURN_ERROR("unsupported anchor");
     } else if (atom->match_point_reset() != nullptr) {
@@ -87,7 +105,7 @@ std::any Visitor::visitExpr(Antlr4Gen::PCREParser::ExprContext* ctx) {
     } else if (atom->quoting() != nullptr) {
       RETURN_ERROR("unsupported quoting");
     } else if (atom->other() != nullptr) {
-      RETURN_ERROR("unsupported other");
+      RETURN_IF_ERROR(buildLiteral(atom->other()->getText(), true));
     }
   }
 
@@ -100,20 +118,91 @@ std::any Visitor::visitExpr(Antlr4Gen::PCREParser::ExprContext* ctx) {
   return {};
 }
 
-void Visitor::appendToLiteral(const std::string& text) {
+std::expected<void, std::string> Visitor::buildLiteral(const std::string& text, bool escape) {
+  std::expected<std::string, std::string> result;
+  const std::string* decoded_text_ptr = &text;
+  if (escape) {
+    result = decodeEscapeCharacter(text);
+    if (!result) {
+      return std::unexpected(result.error());
+    }
+    decoded_text_ptr = &result.value();
+  }
+
   auto& concat = hir_.kind.as<ConcatKind>();
   if (!concat.empty() && concat.back()->kind.is<LiteralKind>()) {
     // Merge consecutive letter literals into a single LiteralKind
     auto& literal = std::get<LiteralKind>(concat.back()->kind);
-    literal += text;
+    literal += *decoded_text_ptr;
   } else {
     auto node = std::make_unique<Hir>();
-    node->kind = LiteralKind(text);
+    node->kind = LiteralKind(*decoded_text_ptr);
     concat.emplace_back(std::move(node));
   }
+  return {};
 }
 
-std::expected<std::string, std::string> Visitor::decodeEscape(const std::string& text) {
+std::expected<void, std::string>
+Visitor::buildUnicodeClass(Antlr4Gen::PCREParser::Character_classContext* ctx) {
+  // Converter for UTF-8 to UTF-32
+  std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> conv;
+
+  bool negated = ctx->negate != nullptr;
+  std::vector<UnicodeClassKind> class_kinds;
+  for (auto* atom : ctx->character_class_atom()) {
+    if (atom->character_class_range()) {
+      assert(atom->character_class_range()->character_class_range_atom().size() == 2);
+      auto* start_atom = atom->character_class_range()->character_class_range_atom()[0];
+      auto* end_atom = atom->character_class_range()->character_class_range_atom()[1];
+      auto start_text = decodeEscapeCharacter(start_atom->getText());
+      if (!start_text) {
+        return std::unexpected(start_text.error());
+      }
+      auto end_text = decodeEscapeCharacter(end_atom->getText());
+      if (!end_text) {
+        return std::unexpected(end_text.error());
+      }
+
+      // Convert UTF-8 to UTF-32
+      std::u32string start_u32 = conv.from_bytes(start_text.value());
+      std::u32string end_u32 = conv.from_bytes(end_text.value());
+      assert(start_u32.size() == 1);
+      assert(end_u32.size() == 1);
+      if (start_u32.size() != 1 || end_u32.size() != 1) {
+        return std::unexpected("Invalid character range");
+      }
+
+      // Get the Unicode code points of the start and end characters
+      auto start_code_point = static_cast<uint32_t>(start_u32[0]);
+      auto end_code_point = static_cast<uint32_t>(end_u32[0]);
+      if (start_code_point > end_code_point) {
+        return std::unexpected(
+            "Invalid character range: start code point is greater than end code point");
+      }
+
+      class_kinds.push_back(UnicodeClassKind{start_code_point, end_code_point});
+    } else if (atom->posix_character_class()) {
+      bool inner_negated = atom->posix_character_class()->negate != nullptr;
+      auto text = atom->posix_character_class()->letters()->getText();
+    } else if (atom->character()) {
+      auto text = decodeEscapeCharacter(atom->character()->getText());
+    } else if (atom->character_type()) {
+      auto text = decodeEscapeCharacterType(atom->character_type()->getText());
+    } else {
+      auto text = atom->getText();
+    }
+  }
+
+  auto& concat = hir_.kind.as<ConcatKind>();
+  for (auto& class_kind : class_kinds) {
+    auto node = std::make_unique<Hir>();
+    node->kind = class_kind;
+    concat.push_back(std::move(node));
+  }
+  return {};
+}
+
+std::expected<std::string, std::string> Visitor::decodeEscapeCharacter(const std::string& text) {
   if (text.empty() || text[0] != '\\') {
     return text;
   }
@@ -171,6 +260,12 @@ std::expected<std::string, std::string> Visitor::decodeEscape(const std::string&
   default:
     return text;
   }
+}
+
+std::expected<std::string, std::string>
+Visitor::decodeEscapeCharacterType(const std::string& text) {
+  // FIXME(zhouyu 2026-09-20): Implement handling for escape character types
+  return std::unexpected("unsupported escape character type");
 }
 
 } // namespace Sregex::Parser

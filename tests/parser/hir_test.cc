@@ -23,25 +23,41 @@
 #include "gtest/gtest.h"
 #include "parser/hir.h"
 
+namespace Sregex::Parser {
 TEST(HirTest, EmptyKind) {
-  auto result = Sregex::Parser::Hir::parse("");
+  auto result = Hir::parse("");
   if (!result) {
     std::cerr << result.error() << std::endl;
   }
   ASSERT_TRUE(result.has_value());
 
   auto hir = std::move(result).value();
-  ASSERT_TRUE(std::holds_alternative<Sregex::Parser::EmptyKind>(hir->kind));
+  ASSERT_TRUE(hir->kind.is<EmptyKind>());
 }
 
 TEST(HirTest, LiteralKind) {
-  auto result = Sregex::Parser::Hir::parse("helloworld123\\a");
+  auto result = Hir::parse("你好世界helloworld123\\a");
   if (!result) {
     std::cerr << result.error() << std::endl;
   }
   ASSERT_TRUE(result.has_value());
 
   auto hir = std::move(result).value();
-  ASSERT_TRUE(std::holds_alternative<Sregex::Parser::LiteralKind>(hir->kind));
-  EXPECT_EQ(std::get<Sregex::Parser::LiteralKind>(hir->kind), "helloworld123\a");
+  ASSERT_TRUE(hir->kind.is<LiteralKind>());
+  EXPECT_EQ(hir->kind.as<LiteralKind>(), "你好世界helloworld123\a");
 }
+
+TEST(HirTest, UnicodeClassKind) {
+  auto result = Sregex::Parser::Hir::parse("[a-z]");
+  if (!result) {
+    std::cerr << result.error() << std::endl;
+  }
+  ASSERT_TRUE(result.has_value());
+
+  auto hir = std::move(result).value();
+  ASSERT_TRUE(hir->kind.is<UnicodeClassKind>());
+  auto& unicode_class = hir->kind.as<UnicodeClassKind>();
+  EXPECT_EQ(unicode_class.start_, 'a');
+  EXPECT_EQ(unicode_class.end_, 'z');
+}
+} // namespace Sregex::Parser
