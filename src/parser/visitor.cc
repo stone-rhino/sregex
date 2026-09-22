@@ -136,13 +136,20 @@ std::any Visitor::visitCharacter(Antlr4Gen::PCREParser::CharacterContext* ctx) {
     return std::unexpected(decode_escape_result.error());
   }
 
-  appendLiteralIntoStack(decode_escape_result.value());
+  appendLiteral(hir_kind_stack_.top(), decode_escape_result.value());
 
   return {};
 }
 
 std::any Visitor::visitCharacter_type(Antlr4Gen::PCREParser::Character_typeContext* ctx) {
-  RETURN_ERROR("unsupported character_type");
+  auto char_type_result = decodeEscapeCharacterType(ctx->getText());
+  if (!char_type_result) {
+    RETURN_ERROR(char_type_result.error());
+  }
+
+  addHirNode(hir_kind_stack_.top(), std::make_unique<HirKind>(char_type_result.value()));
+
+  return {};
 }
 
 std::any Visitor::visitCharacter_class(Antlr4Gen::PCREParser::Character_classContext* ctx) {
@@ -152,9 +159,17 @@ std::any Visitor::visitCharacter_class(Antlr4Gen::PCREParser::Character_classCon
   std::any result = visitChildren(ctx);
   hir_kind_stack_.pop();
 
+  // Merge overlapping unicode class ranges
+  mergeUnicodeClassRanges(unicode_class_kind->as<UnicodeClassKind>());
+
+  // Handle negation of the character class
+  if (ctx->negate) {
+    UnicodeClassKind negated_class = makeNegated(unicode_class_kind->as<UnicodeClassKind>());
+    *unicode_class_kind = std::move(negated_class);
+  }
+
   // Add the newly created HIR node to the parent
   assert(!hir_kind_stack_.empty());
-  mergeUnicodeClassRanges(unicode_class_kind->as<UnicodeClassKind>());
   addHirNode(hir_kind_stack_.top(), std::move(unicode_class_kind));
 
   return {};
@@ -259,7 +274,7 @@ Visitor::visitCharacter_class_atom(Antlr4Gen::PCREParser::Character_class_atomCo
   // e.g., \d \w \s
   else if (ctx->character_type()) {
     auto char_type_name = ctx->character_type()->getText();
-    auto char_type_result = getCharacterType(char_type_name, false);
+    auto char_type_result = decodeEscapeCharacterType(char_type_name);
     if (!char_type_result) {
       RETURN_ERROR(char_type_result.error());
     }
@@ -276,7 +291,10 @@ Visitor::visitCharacter_class_atom(Antlr4Gen::PCREParser::Character_class_atomCo
           }
         },
         *hir_kind_stack_.top());
-  } else {
+  }
+
+  // Handle any other characters
+  else {
     auto text = ctx->getText();
 
     UnicodeClassKind::Range range;
@@ -308,12 +326,12 @@ Visitor::visitPosix_character_class(Antlr4Gen::PCREParser::Posix_character_class
 }
 
 std::any Visitor::visitLetter(Antlr4Gen::PCREParser::LetterContext* ctx) {
-  appendLiteralIntoStack(ctx->getText());
+  appendLiteral(hir_kind_stack_.top(), ctx->getText());
   return {};
 }
 
 std::any Visitor::visitDigit(Antlr4Gen::PCREParser::DigitContext* ctx) {
-  appendLiteralIntoStack(ctx->getText());
+  appendLiteral(hir_kind_stack_.top(), ctx->getText());
   return {};
 }
 
@@ -335,34 +353,9 @@ std::any Visitor::visitOther(Antlr4Gen::PCREParser::OtherContext* ctx) {
     return std::unexpected(result.error());
   }
 
-  appendLiteralIntoStack(result.value());
+  appendLiteral(hir_kind_stack_.top(), result.value());
 
   return {};
-}
-
-void Visitor::appendLiteralIntoStack(const std::string& text) {
-  assert(!hir_kind_stack_.empty());
-  if (hir_kind_stack_.empty()) {
-    return;
-  }
-
-  std::visit(
-      [&](auto&& kind) {
-        using T = std::decay_t<decltype(kind)>;
-        if constexpr (std::is_same_v<T, AlternationKind> || std::is_same_v<T, ConcatKind>) {
-          if (!kind.empty() && kind.back()->template is<LiteralKind>()) {
-            // Merge consecutive letter literals into a single LiteralKind
-            auto& literal = kind.back()->template as<LiteralKind>();
-            literal += text;
-          } else {
-            auto node = std::make_unique<HirKind>(LiteralKind(text));
-            kind.push_back(std::move(node));
-          }
-        } else {
-          assert(false);
-        }
-      },
-      *hir_kind_stack_.top());
 }
 
 std::expected<std::string, std::string> Visitor::decodeEscapeCharacter(const std::string& text) {
@@ -425,14 +418,53 @@ std::expected<std::string, std::string> Visitor::decodeEscapeCharacter(const std
   }
 }
 
-std::expected<std::string, std::string>
+std::expected<UnicodeClassKind, std::string>
 Visitor::decodeEscapeCharacterType(const std::string& text) {
-  // FIXME(zhouyu 2026-09-20): Implement handling for escape character types
-  return std::unexpected("unsupported escape character type");
+  // Table of character types
+  const static std::unordered_map<std::string, UnicodeClassKind> char_type_map = {
+      {".", {{{0x00, 0x10FFFF}}}},
+      {"\\d", {{{0x30, 0x39}}}},
+      {"\\D", {{{0x00, 0x2F}, {0x3A, 0x10FFFF}}}},
+      {"\\s", {{{0x09, 0x0A}, {0x0C, 0x0D}, {0x20, 0x20}}}},
+      {"\\S", {{{0x00, 0x08}, {0x0B, 0x0B}, {0x0E, 0x1F}, {0x21, 0x10FFFF}}}},
+      {"\\w", {{{0x30, 0x39}, {0x41, 0x5A}, {0x5F, 0x5F}, {0x61, 0x7A}}}},
+      {"\\W", {{{0x00, 0x2F}, {0x3A, 0x40}, {0x5B, 0x5E}, {0x60, 0x60}, {0x7B, 0x10FFFF}}}},
+  };
+
+  auto iter = char_type_map.find(text);
+  if (iter == char_type_map.end()) {
+    return std::unexpected("unknown character type: " + text);
+  }
+  return iter->second;
 }
 
 void Visitor::mergeUnicodeClassRanges(UnicodeClassKind& class_kind) {
-  // FIXME(zhouyu 2026-09-20): Implement merging of consecutive Unicode class ranges
+  auto& ranges = class_kind.ranges_;
+  if (ranges.empty()) {
+    return;
+  }
+
+  std::sort(ranges.begin(), ranges.end(), [](const auto& a, const auto& b) {
+    if (a.start_ < b.start_) {
+      return true;
+    } else if (a.start_ == b.start_) {
+      return a.end_ < b.end_;
+    } else {
+      return false;
+    }
+  });
+
+  std::vector<UnicodeClassKind::Range> merged;
+  merged.push_back(ranges[0]);
+  for (size_t i = 1; i < ranges.size(); ++i) {
+    auto& last = merged.back();
+    if (ranges[i].start_ <= last.end_ + 1) {
+      last.end_ = std::max(last.end_, ranges[i].end_);
+    } else {
+      merged.push_back(ranges[i]);
+    }
+  }
+  ranges = std::move(merged);
 }
 
 std::expected<UnicodeClassKind, std::string>
@@ -454,23 +486,6 @@ Visitor::getPosixCharacterClass(const std::string& name, bool negate) {
       {"word", {{{0x30, 0x39}, {0x41, 0x5A}, {0x5F, 0x5F}, {0x61, 0x7A}}}},
       {"xdigit", {{{0x30, 0x39}, {0x41, 0x46}, {0x61, 0x66}}}}};
 
-  // Take the complement of the given POSIX character class ranges
-  static auto makeNegated = [](const UnicodeClassKind& posix_class) -> UnicodeClassKind {
-    constexpr uint32_t MAX = 0x10FFFF;
-    UnicodeClassKind out;
-    uint32_t next = 0;
-    for (const auto& [start, end] : posix_class.ranges_) {
-      if (next < start) {
-        out.ranges_.emplace_back(next, start - 1);
-      }
-      next = end + 1;
-    }
-    if (next <= MAX) {
-      out.ranges_.emplace_back(next, MAX);
-    }
-    return out;
-  };
-
   // Precompute the negated POSIX character classes
   static const std::unordered_map<std::string, UnicodeClassKind> posix_class_negated_map = [&] {
     std::unordered_map<std::string, UnicodeClassKind> t;
@@ -491,9 +506,20 @@ Visitor::getPosixCharacterClass(const std::string& name, bool negate) {
   return iter->second;
 }
 
-std::expected<UnicodeClassKind, std::string> Visitor::getCharacterType(const std::string& name,
-                                                                       bool unicode) {
-  return std::expected<UnicodeClassKind, std::string>();
+UnicodeClassKind Visitor::makeNegated(const UnicodeClassKind& class_kind) {
+  constexpr uint32_t MAX = 0x10FFFF;
+  UnicodeClassKind out;
+  uint32_t next = 0;
+  for (const auto& [start, end] : class_kind.ranges_) {
+    if (next < start) {
+      out.ranges_.emplace_back(next, start - 1);
+    }
+    next = end + 1;
+  }
+  if (next <= MAX) {
+    out.ranges_.emplace_back(next, MAX);
+  }
+  return out;
 }
 
 std::u32string Visitor::utf8ToUtf32(const std::string& text) {
@@ -510,13 +536,36 @@ void Visitor::flatten(HirKind* kind) {
           if (node.size() == 1) {
             std::unique_ptr<HirKind> front = std::move(node.front());
             *kind = std::move(*front);
-          }
 
-          // Recursively flatten the subexpression
-          flatten(kind);
+            // Recursively flatten the subexpression
+            flatten(kind);
+          }
         }
       },
       *kind);
+}
+
+void Visitor::appendLiteral(HirKind* parent, const std::string& text) {
+  assert(parent);
+  if (parent) {
+    std::visit(
+        [&](auto&& kind) {
+          using T = std::decay_t<decltype(kind)>;
+          if constexpr (std::is_same_v<T, AlternationKind> || std::is_same_v<T, ConcatKind>) {
+            if (!kind.empty() && kind.back()->template is<LiteralKind>()) {
+              // Merge consecutive letter literals into a single LiteralKind
+              auto& literal = kind.back()->template as<LiteralKind>();
+              literal += text;
+            } else {
+              auto node = std::make_unique<HirKind>(LiteralKind(text));
+              kind.push_back(std::move(node));
+            }
+          } else {
+            assert(false);
+          }
+        },
+        *parent);
+  }
 }
 
 void Visitor::addHirNode(HirKind* parent, std::unique_ptr<HirKind>&& child) {

@@ -48,7 +48,7 @@ TEST(HirTest, LiteralKind) {
 }
 
 TEST(HirTest, UnicodeClassKind) {
-  auto result = Sregex::Parser::Hir::parse("[a-z]");
+  auto result = Sregex::Parser::Hir::parse("[一-三0-27-91-6[:alpha:]]");
   if (!result) {
     std::cerr << result.error() << std::endl;
   }
@@ -56,9 +56,39 @@ TEST(HirTest, UnicodeClassKind) {
 
   auto hir = std::move(result).value();
   ASSERT_TRUE(hir->kind.is<UnicodeClassKind>());
-  auto& unicode_class = hir->kind.as<UnicodeClassKind>();
-  EXPECT_EQ(unicode_class.ranges_.size(), 1);
-  EXPECT_EQ(unicode_class.ranges_[0].start_, 'a');
-  EXPECT_EQ(unicode_class.ranges_[0].end_, 'z');
+  const auto& unicode_class = hir->kind.as<UnicodeClassKind>();
+  ASSERT_EQ(unicode_class.ranges_.size(), 4);
+  EXPECT_EQ(unicode_class.ranges_[0].start_, '0');
+  EXPECT_EQ(unicode_class.ranges_[0].end_, '9');
+  EXPECT_EQ(unicode_class.ranges_[1].start_, 'A');
+  EXPECT_EQ(unicode_class.ranges_[1].end_, 'Z');
+  EXPECT_EQ(unicode_class.ranges_[2].start_, 'a');
+  EXPECT_EQ(unicode_class.ranges_[2].end_, 'z');
+  EXPECT_EQ(unicode_class.ranges_[3].start_, U'一');
+  EXPECT_EQ(unicode_class.ranges_[3].end_, U'三');
+
+  // Test negated unicode class
+  {
+    auto result = Sregex::Parser::Hir::parse("[^一-三\\d[:alpha:]]");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<UnicodeClassKind>());
+    const auto& unicode_class = hir->kind.as<UnicodeClassKind>();
+    ASSERT_EQ(unicode_class.ranges_.size(), 5);
+    EXPECT_EQ(unicode_class.ranges_[0].start_, 0);
+    EXPECT_EQ(unicode_class.ranges_[0].end_, '0' - 1);
+    EXPECT_EQ(unicode_class.ranges_[1].start_, '9' + 1);
+    EXPECT_EQ(unicode_class.ranges_[1].end_, 'A' - 1);
+    EXPECT_EQ(unicode_class.ranges_[2].start_, 'Z' + 1);
+    EXPECT_EQ(unicode_class.ranges_[2].end_, 'a' - 1);
+    EXPECT_EQ(unicode_class.ranges_[3].start_, 'z' + 1);
+    EXPECT_EQ(unicode_class.ranges_[3].end_, U'一' - 1);
+    EXPECT_EQ(unicode_class.ranges_[4].start_, U'三' + 1);
+    EXPECT_EQ(unicode_class.ranges_[4].end_, 0x10ffff);
+  }
 }
 } // namespace Sregex::Parser

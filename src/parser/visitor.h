@@ -92,39 +92,42 @@ protected:
   }
 
 private:
-  void appendLiteralIntoStack(const std::string& text);
-
-private:
   // Decode escape characters, including \a, \cX, \e, \f, \n, \r, \t, and numeric escapes
   [[nodiscard]]
   static std::expected<std::string, std::string> decodeEscapeCharacter(const std::string& text);
 
-  // Decode escape character types, e.g., \d, \w, \s, etc.
+  // Decode escape character types, e.g., \d, \w, \s
   [[nodiscard]]
-  static std::expected<std::string, std::string> decodeEscapeCharacterType(const std::string& text);
+  static std::expected<UnicodeClassKind, std::string>
+  decodeEscapeCharacterType(const std::string& text);
 
-  // Merge overlapping or adjacent Unicode class ranges into a single range.
+  // Merge overlapping or adjacent Unicode class ranges into a single range
   // e.g., mergeUnicodeClassRanges([{'a', 'e'}, {'f', 'z'}]) => [{'a', 'z'}]
-  void mergeUnicodeClassRanges(UnicodeClassKind& class_kind);
+  static void mergeUnicodeClassRanges(UnicodeClassKind& class_kind);
 
-  // Get POSIX character classes. e.g., [:alnum:], [:alpha:], [:digit:], etc.
+  // Get POSIX character classes. e.g., [:alnum:], [:alpha:], [:digit:]
   [[nodiscard]]
   static std::expected<UnicodeClassKind, std::string>
   getPosixCharacterClass(const std::string& name, bool negate);
 
-  // Get the Unicode class for a given character type, e.g., \d, \w, \s, etc.
-  [[nodiscard]]
-  static std::expected<UnicodeClassKind, std::string> getCharacterType(const std::string& name,
-                                                                       bool unicode);
+  // Create a negated version of the given Unicode class
+  static UnicodeClassKind makeNegated(const UnicodeClassKind& class_kind);
+
+  // Convert a UTF-8 encoded string to a UTF-32 encoded string
+  static std::u32string utf8ToUtf32(const std::string& text);
+
+  // Flatten the HIR tree by merging nested concatenations and alternations into a single level
+  static void flatten(HirKind* kind);
+
+  // Append a literal string to the given HIR node
+  static void appendLiteral(HirKind* parent, const std::string& text);
+
+  // Add a child HIR node to the given parent HIR node
+  static void addHirNode(HirKind* parent, std::unique_ptr<HirKind>&& child);
 
 private:
   Hir& hir_;
   bool should_visit_next_child_{true};
   std::stack<HirKind*> hir_kind_stack_;
-
-private:
-  static std::u32string utf8ToUtf32(const std::string& text);
-  static void flatten(HirKind* kind);
-  static void addHirNode(HirKind* parent, std::unique_ptr<HirKind>&& child);
 };
 } // namespace Sregex::Parser
