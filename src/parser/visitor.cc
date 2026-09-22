@@ -336,7 +336,44 @@ std::any Visitor::visitDigit(Antlr4Gen::PCREParser::DigitContext* ctx) {
 }
 
 std::any Visitor::visitAnchor(Antlr4Gen::PCREParser::AnchorContext* ctx) {
-  RETURN_ERROR("unsupported anchor");
+  auto parent = hir_kind_stack_.top();
+  auto text = ctx->getText();
+  switch (text[0]) {
+  case '^':
+    addHirNode(parent, std::make_unique<HirKind>(AnchorKind::Start));
+    break;
+  case '$':
+    addHirNode(parent, std::make_unique<HirKind>(AnchorKind::End));
+    break;
+  case '\\':
+    if (text.size() >= 2) {
+      switch (text[1]) {
+      case 'b':
+        addHirNode(parent, std::make_unique<HirKind>(AnchorKind::WordBoundary));
+        break;
+      case 'B':
+        addHirNode(parent, std::make_unique<HirKind>(AnchorKind::NonWordBoundary));
+        break;
+      case 'A':
+        addHirNode(parent, std::make_unique<HirKind>(AnchorKind::Start));
+        break;
+      case 'z':
+        addHirNode(parent, std::make_unique<HirKind>(AnchorKind::End));
+        break;
+      case 'Z':
+        addHirNode(parent, std::make_unique<HirKind>(AnchorKind::EndLine));
+        break;
+      case 'G':
+        addHirNode(parent, std::make_unique<HirKind>(AnchorKind::LastMatchPosition));
+        break;
+      default:
+        assert(false);
+      }
+    }
+    break;
+  }
+
+  return {};
 }
 
 std::any Visitor::visitMatch_point_reset(Antlr4Gen::PCREParser::Match_point_resetContext* ctx) {

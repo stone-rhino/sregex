@@ -91,4 +91,34 @@ TEST(HirTest, UnicodeClassKind) {
     EXPECT_EQ(unicode_class.ranges_[4].end_, 0x10ffff);
   }
 }
+
+TEST(HirTest, AnchorKind) {
+  auto result = Sregex::Parser::Hir::parse(R"(^$\b\B\A\z\Z\G)");
+  if (!result) {
+    std::cerr << result.error() << std::endl;
+  }
+  ASSERT_TRUE(result.has_value());
+
+  auto hir = std::move(result).value();
+  ASSERT_TRUE(hir->kind.is<ConcatKind>());
+  const auto& concat = hir->kind.as<ConcatKind>();
+  ASSERT_EQ(concat.size(), 8);
+  ASSERT_TRUE(concat[0]->is<AnchorKind>());
+  EXPECT_EQ(concat[0]->as<AnchorKind>(), AnchorKind::Start);
+  ASSERT_TRUE(concat[1]->is<AnchorKind>());
+  EXPECT_EQ(concat[1]->as<AnchorKind>(), AnchorKind::End);
+  ASSERT_TRUE(concat[2]->is<AnchorKind>());
+  EXPECT_EQ(concat[2]->as<AnchorKind>(), AnchorKind::WordBoundary);
+  ASSERT_TRUE(concat[3]->is<AnchorKind>());
+  EXPECT_EQ(concat[3]->as<AnchorKind>(), AnchorKind::NonWordBoundary);
+  ASSERT_TRUE(concat[4]->is<AnchorKind>());
+  EXPECT_EQ(concat[4]->as<AnchorKind>(), AnchorKind::Start);
+  ASSERT_TRUE(concat[5]->is<AnchorKind>());
+  EXPECT_EQ(concat[5]->as<AnchorKind>(), AnchorKind::End);
+  ASSERT_TRUE(concat[6]->is<AnchorKind>());
+  EXPECT_EQ(concat[6]->as<AnchorKind>(), AnchorKind::EndLine);
+  ASSERT_TRUE(concat[7]->is<AnchorKind>());
+  EXPECT_EQ(concat[7]->as<AnchorKind>(), AnchorKind::LastMatchPosition);
+}
+
 } // namespace Sregex::Parser

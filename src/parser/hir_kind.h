@@ -48,8 +48,23 @@ struct UnicodeClassKind {
   std::vector<Range> ranges_;
 };
 
-// The kind representing a lookahead or lookbehind assertion
-struct LookKind {};
+// The kind representing an anchor
+enum class AnchorKind {
+  // ^ or \A: Match the start of the string
+  Start,
+  // $ or \z: Match the end of the string
+  End,
+  // ^(multiline mode): Match the start of a line or start of the string
+  StartLine,
+  // $(multiline mode) or \Z: Match the end of a line or end of the string
+  EndLine,
+  // \b: Match an ASCII word boundary
+  WordBoundary,
+  // \B: Match an ASCII non-word boundary
+  NonWordBoundary,
+  // \G: Match the last matched position in the string
+  LastMatchPosition
+};
 
 // The kind representing a repetition
 struct RepetitionKind {
@@ -92,10 +107,10 @@ public:
 };
 
 // The variant type representing all possible kinds of HIR nodes
-struct HirKind : public std::variant<EmptyKind, LiteralKind, UnicodeClassKind, LookKind,
+struct HirKind : public std::variant<EmptyKind, LiteralKind, UnicodeClassKind, AnchorKind,
                                      RepetitionKind, CaptureKind, ConcatKind, AlternationKind> {
 private:
-  using Base = std::variant<EmptyKind, LiteralKind, UnicodeClassKind, LookKind, RepetitionKind,
+  using Base = std::variant<EmptyKind, LiteralKind, UnicodeClassKind, AnchorKind, RepetitionKind,
                             CaptureKind, ConcatKind, AlternationKind>;
 
 public:
