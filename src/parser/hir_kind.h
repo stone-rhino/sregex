@@ -29,6 +29,7 @@
 
 namespace Sregex::Parser {
 struct Hir;
+struct HirKind;
 
 // The kind representing an empty expression, which matches everything, including the empty string.
 struct EmptyKind {};
@@ -38,10 +39,13 @@ struct LiteralKind : public std::string {};
 
 // The kind representing a unicode character class
 struct UnicodeClassKind {
-  // The starting code point of the unicode character class
-  uint32_t start_;
-  // The ending code point of the unicode character class
-  uint32_t end_;
+  struct Range {
+    // The starting code point of the unicode character class
+    uint32_t start_;
+    // The ending code point of the unicode character class
+    uint32_t end_;
+  };
+  std::vector<Range> ranges_;
 };
 
 // The kind representing a lookahead or lookbehind assertion
@@ -70,16 +74,22 @@ struct CaptureKind {
 };
 
 // The kind representing a concatenation of subexpressions
-struct ConcatKind : public std::vector<std::unique_ptr<Hir>> {
+struct ConcatKind : public std::vector<std::unique_ptr<HirKind>> {
 private:
-  using Base = std::vector<std::unique_ptr<Hir>>;
+  using Base = std::vector<std::unique_ptr<HirKind>>;
 
 public:
   using Base::Base;
 };
 
 // The kind representing an alternation of subexpressions
-struct AlternationKind : public std::vector<std::unique_ptr<Hir>> {};
+struct AlternationKind : public std::vector<std::unique_ptr<HirKind>> {
+private:
+  using Base = std::vector<std::unique_ptr<HirKind>>;
+
+public:
+  using Base::Base;
+};
 
 // The variant type representing all possible kinds of HIR nodes
 struct HirKind : public std::variant<EmptyKind, LiteralKind, UnicodeClassKind, LookKind,

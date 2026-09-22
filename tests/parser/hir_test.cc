@@ -57,7 +57,8 @@ TEST(HirTest, UnicodeClassKind) {
   auto hir = std::move(result).value();
   ASSERT_TRUE(hir->kind.is<UnicodeClassKind>());
   auto& unicode_class = hir->kind.as<UnicodeClassKind>();
-  EXPECT_EQ(unicode_class.start_, 'a');
-  EXPECT_EQ(unicode_class.end_, 'z');
+  EXPECT_EQ(unicode_class.ranges_.size(), 1);
+  EXPECT_EQ(unicode_class.ranges_[0].start_, 'a');
+  EXPECT_EQ(unicode_class.ranges_[0].end_, 'z');
 }
 } // namespace Sregex::Parser
