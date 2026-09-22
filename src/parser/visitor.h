@@ -63,6 +63,8 @@ protected:
 
   std::any visitComment(Antlr4Gen::PCREParser::CommentContext* ctx) override;
 
+  std::any visitQuantifier(Antlr4Gen::PCREParser::QuantifierContext* ctx) override;
+
   std::any visitCharacter(Antlr4Gen::PCREParser::CharacterContext* ctx) override;
 
   std::any visitCharacter_type(Antlr4Gen::PCREParser::Character_typeContext* ctx) override;

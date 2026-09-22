@@ -121,4 +121,298 @@ TEST(HirTest, AnchorKind) {
   EXPECT_EQ(concat[7]->as<AnchorKind>(), AnchorKind::LastMatchPosition);
 }
 
+TEST(HirTest, RepetitionKindWithGreedy) {
+  {
+    auto result = Sregex::Parser::Hir::parse("a{3,9}");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 3);
+    EXPECT_EQ(rep.max_, 9);
+    EXPECT_TRUE(rep.greedy_);
+    EXPECT_FALSE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("a{3,}");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 3);
+    EXPECT_EQ(rep.max_, std::nullopt);
+    EXPECT_TRUE(rep.greedy_);
+    EXPECT_FALSE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("a{3}");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 3);
+    EXPECT_EQ(rep.max_, 3);
+    EXPECT_TRUE(rep.greedy_);
+    EXPECT_FALSE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("a?");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 0);
+    EXPECT_EQ(rep.max_, 1);
+    EXPECT_TRUE(rep.greedy_);
+    EXPECT_FALSE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("a+");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 1);
+    EXPECT_EQ(rep.max_, std::nullopt);
+    EXPECT_TRUE(rep.greedy_);
+    EXPECT_FALSE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("a*");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 0);
+    EXPECT_EQ(rep.max_, std::nullopt);
+    EXPECT_TRUE(rep.greedy_);
+    EXPECT_FALSE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+}
+
+TEST(HirTest, RepetitionKindWithLazy) {
+  {
+    auto result = Sregex::Parser::Hir::parse("a{3,9}?");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 3);
+    EXPECT_EQ(rep.max_, 9);
+    EXPECT_FALSE(rep.greedy_);
+    EXPECT_FALSE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("a{3,}?");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 3);
+    EXPECT_EQ(rep.max_, std::nullopt);
+    EXPECT_FALSE(rep.greedy_);
+    EXPECT_FALSE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("a??");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 0);
+    EXPECT_EQ(rep.max_, 1);
+    EXPECT_FALSE(rep.greedy_);
+    EXPECT_FALSE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("a+?");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 1);
+    EXPECT_EQ(rep.max_, std::nullopt);
+    EXPECT_FALSE(rep.greedy_);
+    EXPECT_FALSE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("a*?");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 0);
+    EXPECT_EQ(rep.max_, std::nullopt);
+    EXPECT_FALSE(rep.greedy_);
+    EXPECT_FALSE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+}
+
+TEST(HirTest, RepetitionKindWithPossessive) {
+  {
+    auto result = Sregex::Parser::Hir::parse("a{3,9}+");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 3);
+    EXPECT_EQ(rep.max_, 9);
+    EXPECT_TRUE(rep.greedy_);
+    EXPECT_TRUE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("a{3,}+");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 3);
+    EXPECT_EQ(rep.max_, std::nullopt);
+    EXPECT_TRUE(rep.greedy_);
+    EXPECT_TRUE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("a?+");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 0);
+    EXPECT_EQ(rep.max_, 1);
+    EXPECT_TRUE(rep.greedy_);
+    EXPECT_TRUE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("a++");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 1);
+    EXPECT_EQ(rep.max_, std::nullopt);
+    EXPECT_TRUE(rep.greedy_);
+    EXPECT_TRUE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("a*+");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<RepetitionKind>());
+    const auto& rep = hir->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 0);
+    EXPECT_EQ(rep.max_, std::nullopt);
+    EXPECT_TRUE(rep.greedy_);
+    EXPECT_TRUE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+  }
+}
+
 } // namespace Sregex::Parser

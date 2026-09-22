@@ -72,10 +72,12 @@ struct RepetitionKind {
   uint32_t min_;
   // The maximum range of repetition, if any.
   std::optional<uint32_t> max_;
+  // Whether the repetition is possessive
+  bool possessive_;
   // Whether the repetition is greedy
   bool greedy_;
   // The subexpression being repeated
-  std::unique_ptr<Hir> sub_;
+  std::unique_ptr<HirKind> sub_;
 };
 
 // The kind representing a capture group
@@ -85,7 +87,7 @@ struct CaptureKind {
   // The name of the capture group, if any.
   std::string name_;
   // The subexpression captured by this group, which may be empty.
-  std::unique_ptr<Hir> sub_;
+  std::unique_ptr<HirKind> sub_;
 };
 
 // The kind representing a concatenation of subexpressions

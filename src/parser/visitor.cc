@@ -129,6 +129,63 @@ std::any Visitor::visitComment(Antlr4Gen::PCREParser::CommentContext* ctx) {
   return std::any();
 }
 
+std::any Visitor::visitQuantifier(Antlr4Gen::PCREParser::QuantifierContext* ctx) {
+  std::unique_ptr<HirKind> rep_kind = std::make_unique<HirKind>(RepetitionKind{});
+  auto& rep = rep_kind->as<RepetitionKind>();
+
+  auto text = ctx->getText();
+  switch (text[0]) {
+  case '?':
+    rep.min_ = 0;
+    rep.max_ = 1;
+    break;
+  case '*':
+    rep.min_ = 0;
+    break;
+  case '+':
+    rep.min_ = 1;
+    break;
+  case '{':
+    std::string min_str = ctx->from->getText();
+    std::from_chars(min_str.data(), min_str.data() + min_str.size(), rep.min_);
+
+    auto comma_pos = text.find(',');
+    if (comma_pos != std::string::npos) {
+      std::string max_str = ctx->to ? ctx->to->getText() : "";
+      if (!max_str.empty()) {
+        uint32_t max = 0;
+        std::from_chars(max_str.data(), max_str.data() + max_str.size(), max);
+        rep.max_ = max;
+      }
+    } else {
+      rep.max_ = rep.min_;
+    }
+    break;
+  }
+
+  rep.greedy_ = !ctx->lazy;
+  rep.possessive_ = ctx->possessive;
+
+  // Attach the repetition node to the last element of the concatenation kind
+  std::visit(
+      [&](auto&& parent) {
+        using T = std::decay_t<decltype(parent)>;
+        if constexpr (std::is_same_v<T, ConcatKind>) {
+          if (!parent.empty()) {
+            rep.sub_ = std::move(parent.back());
+            parent.back() = std::move(rep_kind);
+          } else {
+            assert(false);
+          }
+        } else {
+          assert(false);
+        }
+      },
+      *hir_kind_stack_.top());
+
+  return std::any();
+}
+
 std::any Visitor::visitCharacter(Antlr4Gen::PCREParser::CharacterContext* ctx) {
   // Decode the escape character
   auto decode_escape_result = decodeEscapeCharacter(ctx->getText());
