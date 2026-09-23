@@ -612,4 +612,57 @@ TEST(HirTest, CaptureKind) {
   }
 }
 
+TEST(HirTest, ConcatKind) {
+  auto result = Hir::parse("^hello[wW](?i:orld)[一-龥]+$");
+  if (!result) {
+    std::cerr << result.error() << std::endl;
+  }
+  ASSERT_TRUE(result.has_value());
+
+  auto hir = std::move(result).value();
+  ASSERT_TRUE(hir->kind.is<ConcatKind>());
+  const auto& concat = hir->kind.as<ConcatKind>();
+  ASSERT_EQ(concat.size(), 6);
+
+  ASSERT_TRUE(concat[0]->kind.is<AnchorKind>());
+  EXPECT_EQ(concat[0]->kind.as<AnchorKind>(), AnchorKind::Start);
+
+  ASSERT_TRUE(concat[1]->kind.is<LiteralKind>());
+  EXPECT_EQ(concat[1]->kind.as<LiteralKind>(), "hello");
+
+  ASSERT_TRUE(concat[2]->kind.is<UnicodeClassKind>());
+  const auto& unicode_class = concat[2]->kind.as<UnicodeClassKind>();
+  ASSERT_EQ(unicode_class.ranges_.size(), 2);
+  EXPECT_EQ(unicode_class.ranges_[0].start_, 'W');
+  EXPECT_EQ(unicode_class.ranges_[0].end_, 'W');
+  EXPECT_EQ(unicode_class.ranges_[1].start_, 'w');
+  EXPECT_EQ(unicode_class.ranges_[1].end_, 'w');
+
+  EXPECT_TRUE(concat[3]->option_settings_.test(
+      static_cast<size_t>(OptionSettingBitOffset::CaseInsensitive)));
+  ASSERT_TRUE(concat[3]->kind.is<CaptureKind>());
+  const auto& cap = concat[3]->kind.as<CaptureKind>();
+  ASSERT_TRUE(cap.sub_);
+  ASSERT_TRUE(cap.sub_->kind.is<LiteralKind>());
+  EXPECT_EQ(cap.sub_->kind.as<LiteralKind>(), "orld");
+  EXPECT_TRUE(cap.sub_->option_settings_.test(
+      static_cast<size_t>(OptionSettingBitOffset::CaseInsensitive)));
+
+  ASSERT_TRUE(concat[4]->kind.is<RepetitionKind>());
+  const auto& rep = concat[4]->kind.as<RepetitionKind>();
+  EXPECT_EQ(rep.min_, 1);
+  EXPECT_EQ(rep.max_, std::nullopt);
+  ASSERT_TRUE(rep.sub_);
+  ASSERT_TRUE(rep.sub_->kind.is<UnicodeClassKind>());
+  const auto& unicode_class2 = rep.sub_->kind.as<UnicodeClassKind>();
+  ASSERT_EQ(unicode_class2.ranges_.size(), 1);
+  EXPECT_EQ(unicode_class2.ranges_[0].start_, U'一');
+  EXPECT_EQ(unicode_class2.ranges_[0].end_, U'龥');
+
+  ASSERT_TRUE(concat[5]->kind.is<AnchorKind>());
+  EXPECT_EQ(concat[5]->kind.as<AnchorKind>(), AnchorKind::End);
+}
+
+TEST(HirTest, AlternationKind) {}
+
 } // namespace Sregex::Parser
