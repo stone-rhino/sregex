@@ -36,6 +36,10 @@ struct Hir {
   // The option settings for this HIR
   std::bitset<static_cast<size_t>(OptionSettingBitOffset::MAX)> option_settings_;
 
+  // Dumps the HIR as a string for debugging purposes.
+  std::string dump() const;
+
+  // Parses a regular expression pattern into a HIR.
   static std::expected<std::unique_ptr<Hir>, std::string> parse(const std::string& pattern) {
     return parse(pattern.data(), pattern.size());
   }

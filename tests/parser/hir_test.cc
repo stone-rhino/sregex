@@ -189,6 +189,7 @@ TEST(HirTest, EmptyKind) {
 
   auto hir = std::move(result).value();
   ASSERT_TRUE(hir->kind.is<EmptyKind>());
+  EXPECT_EQ(hir->dump(), "empty");
 }
 
 TEST(HirTest, LiteralKind) {
@@ -201,6 +202,7 @@ TEST(HirTest, LiteralKind) {
   auto hir = std::move(result).value();
   ASSERT_TRUE(hir->kind.is<LiteralKind>());
   EXPECT_EQ(hir->kind.as<LiteralKind>(), "你好世界helloworld123\a");
+  EXPECT_EQ(hir->dump(), "lit{你好世界helloworld123\a}");
 }
 
 TEST(HirTest, UnicodeClassKind) {
@@ -222,6 +224,7 @@ TEST(HirTest, UnicodeClassKind) {
   EXPECT_EQ(unicode_class.ranges_[2].end_, 'z');
   EXPECT_EQ(unicode_class.ranges_[3].start_, U'一');
   EXPECT_EQ(unicode_class.ranges_[3].end_, U'三');
+  EXPECT_EQ(hir->dump(), "uc{0x30-0x39 0x41-0x5a 0x61-0x7a 0x4e00-0x4e09}");
 
   // Test negated unicode class
   {
@@ -245,6 +248,7 @@ TEST(HirTest, UnicodeClassKind) {
     EXPECT_EQ(unicode_class.ranges_[3].end_, U'一' - 1);
     EXPECT_EQ(unicode_class.ranges_[4].start_, U'三' + 1);
     EXPECT_EQ(unicode_class.ranges_[4].end_, 0x10ffff);
+    EXPECT_EQ(hir->dump(), "uc{0x00-0x2f 0x3a-0x40 0x5b-0x60 0x7b-0x4dff 0x4e0a-0x10ffff}");
   }
 }
 
@@ -275,6 +279,10 @@ TEST(HirTest, AnchorKind) {
   EXPECT_EQ(concat[6]->kind.as<AnchorKind>(), AnchorKind::EndLine);
   ASSERT_TRUE(concat[7]->kind.is<AnchorKind>());
   EXPECT_EQ(concat[7]->kind.as<AnchorKind>(), AnchorKind::LastMatchPosition);
+
+  // clang-format off
+  EXPECT_EQ(hir->dump(), "cat{anc{Start} anc{End} anc{WordBoundary} anc{NonWordBoundary} anc{Start} anc{End} anc{EndLine} anc{LastMatchPosition}}");
+  // clang-format on
 }
 
 TEST(HirTest, RepetitionKindWithGreedy) {
@@ -294,6 +302,7 @@ TEST(HirTest, RepetitionKindWithGreedy) {
     EXPECT_FALSE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{3,9 lit{a}}");
   }
 
   {
@@ -312,6 +321,7 @@ TEST(HirTest, RepetitionKindWithGreedy) {
     EXPECT_FALSE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{3,-1 lit{a}}");
   }
 
   {
@@ -330,6 +340,7 @@ TEST(HirTest, RepetitionKindWithGreedy) {
     EXPECT_FALSE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{3,3 lit{a}}");
   }
 
   {
@@ -348,6 +359,7 @@ TEST(HirTest, RepetitionKindWithGreedy) {
     EXPECT_FALSE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{0,1 lit{a}}");
   }
 
   {
@@ -366,6 +378,7 @@ TEST(HirTest, RepetitionKindWithGreedy) {
     EXPECT_FALSE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{1,-1 lit{a}}");
   }
 
   {
@@ -384,6 +397,7 @@ TEST(HirTest, RepetitionKindWithGreedy) {
     EXPECT_FALSE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{0,-1 lit{a}}");
   }
 }
 
@@ -404,6 +418,7 @@ TEST(HirTest, RepetitionKindWithLazy) {
     EXPECT_FALSE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{3,9 lit{a}}");
   }
 
   {
@@ -422,6 +437,7 @@ TEST(HirTest, RepetitionKindWithLazy) {
     EXPECT_FALSE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{3,-1 lit{a}}");
   }
 
   {
@@ -440,6 +456,7 @@ TEST(HirTest, RepetitionKindWithLazy) {
     EXPECT_FALSE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{0,1 lit{a}}");
   }
 
   {
@@ -458,6 +475,7 @@ TEST(HirTest, RepetitionKindWithLazy) {
     EXPECT_FALSE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{1,-1 lit{a}}");
   }
 
   {
@@ -476,6 +494,7 @@ TEST(HirTest, RepetitionKindWithLazy) {
     EXPECT_FALSE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{0,-1 lit{a}}");
   }
 }
 
@@ -496,6 +515,7 @@ TEST(HirTest, RepetitionKindWithPossessive) {
     EXPECT_TRUE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{3,9 lit{a}}");
   }
 
   {
@@ -514,6 +534,7 @@ TEST(HirTest, RepetitionKindWithPossessive) {
     EXPECT_TRUE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{3,-1 lit{a}}");
   }
 
   {
@@ -532,6 +553,7 @@ TEST(HirTest, RepetitionKindWithPossessive) {
     EXPECT_TRUE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{0,1 lit{a}}");
   }
 
   {
@@ -550,6 +572,7 @@ TEST(HirTest, RepetitionKindWithPossessive) {
     EXPECT_TRUE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{1,-1 lit{a}}");
   }
 
   {
@@ -568,6 +591,7 @@ TEST(HirTest, RepetitionKindWithPossessive) {
     EXPECT_TRUE(rep.possessive_);
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
+    EXPECT_EQ(hir->dump(), "rep{0,-1 lit{a}}");
   }
 }
 
@@ -586,6 +610,7 @@ TEST(HirTest, CaptureKind) {
     EXPECT_EQ(cap.name_, "hi");
     ASSERT_TRUE(cap.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(cap.sub_->kind.as<LiteralKind>(), "helloworld");
+    EXPECT_EQ(hir->dump(), "cap{lit{helloworld}}");
   }
 
   {
@@ -609,6 +634,7 @@ TEST(HirTest, CaptureKind) {
         static_cast<size_t>(OptionSettingBitOffset::CaseInsensitive)));
     EXPECT_TRUE(
         cap.sub_->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::Multiline)));
+    EXPECT_EQ(hir->dump(), "cap{lit{helloworld}}");
   }
 }
 
@@ -661,6 +687,8 @@ TEST(HirTest, ConcatKind) {
 
   ASSERT_TRUE(concat[5]->kind.is<AnchorKind>());
   EXPECT_EQ(concat[5]->kind.as<AnchorKind>(), AnchorKind::End);
+  EXPECT_EQ(hir->dump(), "cat{anc{Start} lit{hello} uc{0x57 0x77} cap{lit{orld}} rep{1,-1 "
+                         "uc{0x4e00-0x9fa5}} anc{End}}");
 }
 
 TEST(HirTest, AlternationKind) {
@@ -730,6 +758,10 @@ TEST(HirTest, AlternationKind) {
     ASSERT_TRUE(alt[2]->kind.is<LiteralKind>());
     EXPECT_EQ(alt[2]->kind.as<LiteralKind>(), "bar");
   }
+
+  // clang-format off
+  EXPECT_EQ(hir->dump(), "alt{cat{anc{Start} lit{hello} uc{0x57 0x77} cap{lit{orld}} rep{1,-1 uc{0x4e00-0x9fa5}} anc{End}} | lit{foo} | lit{bar}}");
+  // clang-format on
 }
 
 } // namespace Sregex::Parser

@@ -65,6 +65,99 @@ public:
   std::string error_msg;
 };
 
+void dump_helper(const Hir& hir, std::string& out) {
+  std::visit(
+      [&](auto&& kind) {
+        if constexpr (std::is_same_v<std::decay_t<decltype(kind)>, EmptyKind>) {
+          out += "empty";
+        } else if constexpr (std::is_same_v<std::decay_t<decltype(kind)>, LiteralKind>) {
+          out += "lit{" + kind + "}";
+        } else if constexpr (std::is_same_v<std::decay_t<decltype(kind)>, UnicodeClassKind>) {
+          out += "uc{";
+          for (size_t i = 0; i < kind.ranges_.size(); ++i) {
+            const auto& range = kind.ranges_[i];
+            if (i != 0) {
+              out += " ";
+            }
+            if (range.start_ == range.end_) {
+              out += std::format("0x{:02x}", range.start_);
+            } else {
+              out += std::format("0x{:02x}-0x{:02x}", range.start_, range.end_);
+            }
+          }
+          out += "}";
+        } else if constexpr (std::is_same_v<std::decay_t<decltype(kind)>, AnchorKind>) {
+          std::string name;
+          switch (kind) {
+          case AnchorKind::Start:
+            name = "Start";
+            break;
+          case AnchorKind::End:
+            name = "End";
+            break;
+          case AnchorKind::StartLine:
+            name = "StartLine";
+            break;
+          case AnchorKind::EndLine:
+            name = "EndLine";
+            break;
+          case AnchorKind::WordBoundary:
+            name = "WordBoundary";
+            break;
+          case AnchorKind::NonWordBoundary:
+            name = "NonWordBoundary";
+            break;
+          case AnchorKind::LastMatchPosition:
+            name = "LastMatchPosition";
+            break;
+          default:
+            name = "Unknown";
+            break;
+          }
+          out += "anc{" + name + "}";
+        } else if constexpr (std::is_same_v<std::decay_t<decltype(kind)>, RepetitionKind>) {
+          std::string temp;
+          dump_helper(*kind.sub_, temp);
+
+          std::string rep_count =
+              std::format("{},{} ", kind.min_,
+                          kind.max_.has_value() ? static_cast<int64_t>(kind.max_.value()) : -1);
+          out += "rep{" + rep_count + temp + "}";
+
+        } else if constexpr (std::is_same_v<std::decay_t<decltype(kind)>, CaptureKind>) {
+          std::string temp;
+          dump_helper(*kind.sub_, temp);
+          out += "cap{" + temp + "}";
+        } else if constexpr (std::is_same_v<std::decay_t<decltype(kind)>, ConcatKind>) {
+          std::string temp;
+          for (const std::unique_ptr<Hir>& sub_hir : kind) {
+            if (!temp.empty()) {
+              temp += " ";
+            }
+            dump_helper(*sub_hir, temp);
+          }
+          out += "cat{" + temp + "}";
+        } else if constexpr (std::is_same_v<std::decay_t<decltype(kind)>, AlternationKind>) {
+          std::string temp;
+          for (const std::unique_ptr<Hir>& sub_hir : kind) {
+            if (!temp.empty()) {
+              temp += " | ";
+            }
+            dump_helper(*sub_hir, temp);
+          }
+
+          out += "alt{" + temp + "}";
+        }
+      },
+      hir.kind);
+}
+
+std::string Hir::dump() const {
+  std::string out;
+  dump_helper(*this, out);
+  return out;
+}
+
 std::expected<std::unique_ptr<Hir>, std::string> Hir::parse(const char* pattern, size_t length) {
   // Initialize
   antlr4::ANTLRInputStream input(pattern, length);
