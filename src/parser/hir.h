@@ -20,6 +20,7 @@
  */
 #pragma once
 
+#include <bitset>
 #include <cstring>
 #include <expected>
 #include <memory>
@@ -29,19 +30,11 @@
 #include "hir_kind.h"
 
 namespace Sregex::Parser {
-// The properties associated with an HIR
-struct HirProperties {
-  uint32_t min_length_{0};
-  uint32_t max_length_{0};
-  bool utf8_{false};
-  bool literal_{false};
-};
-
 struct Hir {
   // The underlying HIR kind
   HirKind kind;
-  // The properties of this HIR
-  HirProperties properties_;
+  // The option settings for this HIR
+  std::bitset<static_cast<size_t>(OptionSettingBitOffset::MAX)> option_settings_;
 
   static std::expected<std::unique_ptr<Hir>, std::string> parse(const std::string& pattern) {
     return parse(pattern.data(), pattern.size());

@@ -24,6 +24,162 @@
 #include "parser/hir.h"
 
 namespace Sregex::Parser {
+TEST(HirTest, OptionSettings) {
+  {
+    auto result = Hir::parse("");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    EXPECT_EQ(hir->option_settings_.count(), 0);
+  }
+
+  {
+    auto result = Hir::parse("(*UTF)");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    EXPECT_EQ(hir->option_settings_.count(), 1);
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::UTF8)));
+  }
+
+  {
+    auto result = Hir::parse("(*UTF8)");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    EXPECT_EQ(hir->option_settings_.count(), 1);
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::UTF8)));
+  }
+
+  {
+    auto result = Hir::parse("(*UTF16)");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    EXPECT_EQ(hir->option_settings_.count(), 1);
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::UTF16)));
+  }
+
+  {
+    auto result = Hir::parse("(*UTF32)");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    EXPECT_EQ(hir->option_settings_.count(), 1);
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::UTF32)));
+  }
+
+  {
+    auto result = Hir::parse("(*UTF)(*UCP)(*NO_AUTO_POSSESS)(*NO_START_OPT)(*CR)(*LF)(*CRLF)(*"
+                             "ANYCRLF)(*ANY)(*BSR_ANYCRLF)(*BSR_UNICODE)");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    EXPECT_EQ(hir->option_settings_.count(), 11);
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::UTF8)));
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::UCP)));
+    EXPECT_TRUE(
+        hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::NoAutoPossess)));
+    EXPECT_TRUE(
+        hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::NoStartOpt)));
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::NewlineCR)));
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::NewlineLF)));
+    EXPECT_TRUE(
+        hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::NewlineCRLF)));
+    EXPECT_TRUE(
+        hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::NewlineAnyCRLF)));
+    EXPECT_TRUE(
+        hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::NewlineAny)));
+    EXPECT_TRUE(
+        hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::BsrAnyCRLF)));
+    EXPECT_TRUE(
+        hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::BsrUnicode)));
+  }
+
+  {
+    auto result = Hir::parse("(?i)");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    EXPECT_EQ(hir->option_settings_.count(), 1);
+    EXPECT_TRUE(
+        hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::CaseInsensitive)));
+  }
+
+  {
+    auto result = Hir::parse("(?i)(?-i)");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    EXPECT_EQ(hir->option_settings_.count(), 0);
+    EXPECT_FALSE(
+        hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::CaseInsensitive)));
+  }
+
+  {
+    auto result = Hir::parse("(?iJmsUx)");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    EXPECT_EQ(hir->option_settings_.count(), 6);
+    EXPECT_TRUE(
+        hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::CaseInsensitive)));
+    EXPECT_TRUE(hir->option_settings_.test(
+        static_cast<size_t>(OptionSettingBitOffset::DuplicateNamedCaptureGroups)));
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::Multiline)));
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::DotAll)));
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::Ungreedy)));
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::Extended)));
+  }
+
+  {
+    auto result = Hir::parse("(?iJmsUx-iJm)");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    EXPECT_EQ(hir->option_settings_.count(), 3);
+    EXPECT_FALSE(
+        hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::CaseInsensitive)));
+    EXPECT_FALSE(hir->option_settings_.test(
+        static_cast<size_t>(OptionSettingBitOffset::DuplicateNamedCaptureGroups)));
+    EXPECT_FALSE(
+        hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::Multiline)));
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::DotAll)));
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::Ungreedy)));
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::Extended)));
+  }
+}
+
 TEST(HirTest, EmptyKind) {
   auto result = Hir::parse("");
   if (!result) {
@@ -103,22 +259,22 @@ TEST(HirTest, AnchorKind) {
   ASSERT_TRUE(hir->kind.is<ConcatKind>());
   const auto& concat = hir->kind.as<ConcatKind>();
   ASSERT_EQ(concat.size(), 8);
-  ASSERT_TRUE(concat[0]->is<AnchorKind>());
-  EXPECT_EQ(concat[0]->as<AnchorKind>(), AnchorKind::Start);
-  ASSERT_TRUE(concat[1]->is<AnchorKind>());
-  EXPECT_EQ(concat[1]->as<AnchorKind>(), AnchorKind::End);
-  ASSERT_TRUE(concat[2]->is<AnchorKind>());
-  EXPECT_EQ(concat[2]->as<AnchorKind>(), AnchorKind::WordBoundary);
-  ASSERT_TRUE(concat[3]->is<AnchorKind>());
-  EXPECT_EQ(concat[3]->as<AnchorKind>(), AnchorKind::NonWordBoundary);
-  ASSERT_TRUE(concat[4]->is<AnchorKind>());
-  EXPECT_EQ(concat[4]->as<AnchorKind>(), AnchorKind::Start);
-  ASSERT_TRUE(concat[5]->is<AnchorKind>());
-  EXPECT_EQ(concat[5]->as<AnchorKind>(), AnchorKind::End);
-  ASSERT_TRUE(concat[6]->is<AnchorKind>());
-  EXPECT_EQ(concat[6]->as<AnchorKind>(), AnchorKind::EndLine);
-  ASSERT_TRUE(concat[7]->is<AnchorKind>());
-  EXPECT_EQ(concat[7]->as<AnchorKind>(), AnchorKind::LastMatchPosition);
+  ASSERT_TRUE(concat[0]->kind.is<AnchorKind>());
+  EXPECT_EQ(concat[0]->kind.as<AnchorKind>(), AnchorKind::Start);
+  ASSERT_TRUE(concat[1]->kind.is<AnchorKind>());
+  EXPECT_EQ(concat[1]->kind.as<AnchorKind>(), AnchorKind::End);
+  ASSERT_TRUE(concat[2]->kind.is<AnchorKind>());
+  EXPECT_EQ(concat[2]->kind.as<AnchorKind>(), AnchorKind::WordBoundary);
+  ASSERT_TRUE(concat[3]->kind.is<AnchorKind>());
+  EXPECT_EQ(concat[3]->kind.as<AnchorKind>(), AnchorKind::NonWordBoundary);
+  ASSERT_TRUE(concat[4]->kind.is<AnchorKind>());
+  EXPECT_EQ(concat[4]->kind.as<AnchorKind>(), AnchorKind::Start);
+  ASSERT_TRUE(concat[5]->kind.is<AnchorKind>());
+  EXPECT_EQ(concat[5]->kind.as<AnchorKind>(), AnchorKind::End);
+  ASSERT_TRUE(concat[6]->kind.is<AnchorKind>());
+  EXPECT_EQ(concat[6]->kind.as<AnchorKind>(), AnchorKind::EndLine);
+  ASSERT_TRUE(concat[7]->kind.is<AnchorKind>());
+  EXPECT_EQ(concat[7]->kind.as<AnchorKind>(), AnchorKind::LastMatchPosition);
 }
 
 TEST(HirTest, RepetitionKindWithGreedy) {
@@ -136,8 +292,8 @@ TEST(HirTest, RepetitionKindWithGreedy) {
     EXPECT_EQ(rep.max_, 9);
     EXPECT_TRUE(rep.greedy_);
     EXPECT_FALSE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 
   {
@@ -154,8 +310,8 @@ TEST(HirTest, RepetitionKindWithGreedy) {
     EXPECT_EQ(rep.max_, std::nullopt);
     EXPECT_TRUE(rep.greedy_);
     EXPECT_FALSE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 
   {
@@ -172,8 +328,8 @@ TEST(HirTest, RepetitionKindWithGreedy) {
     EXPECT_EQ(rep.max_, 3);
     EXPECT_TRUE(rep.greedy_);
     EXPECT_FALSE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 
   {
@@ -190,8 +346,8 @@ TEST(HirTest, RepetitionKindWithGreedy) {
     EXPECT_EQ(rep.max_, 1);
     EXPECT_TRUE(rep.greedy_);
     EXPECT_FALSE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 
   {
@@ -208,8 +364,8 @@ TEST(HirTest, RepetitionKindWithGreedy) {
     EXPECT_EQ(rep.max_, std::nullopt);
     EXPECT_TRUE(rep.greedy_);
     EXPECT_FALSE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 
   {
@@ -226,8 +382,8 @@ TEST(HirTest, RepetitionKindWithGreedy) {
     EXPECT_EQ(rep.max_, std::nullopt);
     EXPECT_TRUE(rep.greedy_);
     EXPECT_FALSE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 }
 
@@ -246,8 +402,8 @@ TEST(HirTest, RepetitionKindWithLazy) {
     EXPECT_EQ(rep.max_, 9);
     EXPECT_FALSE(rep.greedy_);
     EXPECT_FALSE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 
   {
@@ -264,8 +420,8 @@ TEST(HirTest, RepetitionKindWithLazy) {
     EXPECT_EQ(rep.max_, std::nullopt);
     EXPECT_FALSE(rep.greedy_);
     EXPECT_FALSE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 
   {
@@ -282,8 +438,8 @@ TEST(HirTest, RepetitionKindWithLazy) {
     EXPECT_EQ(rep.max_, 1);
     EXPECT_FALSE(rep.greedy_);
     EXPECT_FALSE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 
   {
@@ -300,8 +456,8 @@ TEST(HirTest, RepetitionKindWithLazy) {
     EXPECT_EQ(rep.max_, std::nullopt);
     EXPECT_FALSE(rep.greedy_);
     EXPECT_FALSE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 
   {
@@ -318,8 +474,8 @@ TEST(HirTest, RepetitionKindWithLazy) {
     EXPECT_EQ(rep.max_, std::nullopt);
     EXPECT_FALSE(rep.greedy_);
     EXPECT_FALSE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 }
 
@@ -338,8 +494,8 @@ TEST(HirTest, RepetitionKindWithPossessive) {
     EXPECT_EQ(rep.max_, 9);
     EXPECT_TRUE(rep.greedy_);
     EXPECT_TRUE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 
   {
@@ -356,8 +512,8 @@ TEST(HirTest, RepetitionKindWithPossessive) {
     EXPECT_EQ(rep.max_, std::nullopt);
     EXPECT_TRUE(rep.greedy_);
     EXPECT_TRUE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 
   {
@@ -374,8 +530,8 @@ TEST(HirTest, RepetitionKindWithPossessive) {
     EXPECT_EQ(rep.max_, 1);
     EXPECT_TRUE(rep.greedy_);
     EXPECT_TRUE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 
   {
@@ -392,8 +548,8 @@ TEST(HirTest, RepetitionKindWithPossessive) {
     EXPECT_EQ(rep.max_, std::nullopt);
     EXPECT_TRUE(rep.greedy_);
     EXPECT_TRUE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 
   {
@@ -410,8 +566,8 @@ TEST(HirTest, RepetitionKindWithPossessive) {
     EXPECT_EQ(rep.max_, std::nullopt);
     EXPECT_TRUE(rep.greedy_);
     EXPECT_TRUE(rep.possessive_);
-    EXPECT_TRUE(rep.sub_->is<LiteralKind>());
-    EXPECT_EQ(rep.sub_->as<LiteralKind>(), "a");
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
   }
 }
 

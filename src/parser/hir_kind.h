@@ -31,6 +31,49 @@ namespace Sregex::Parser {
 struct Hir;
 struct HirKind;
 
+// The bit offsets for various option settings in the regular expression parser
+enum class OptionSettingBitOffset : uint32_t {
+  UTF8 = 0,
+  UTF16,
+  UTF32,
+  // (*UCP): Makes character types such as \d and \w use Unicode properties
+  UCP,
+  // (*NO_AUTO_POSSESS): Disables PCRE auto-possessification
+  NoAutoPossess,
+  // (*NO_START_OPT): Suppresses the start-of-match optimizations that are otherwise run by PCRE
+  NoStartOpt,
+  // (*CR): Specifies a newline convention: carriage return
+  NewlineCR,
+  // (*LF): Specifies a newline convention: line-feed
+  NewlineLF,
+  // (*CRLF): Specifies a newline convention: \r, followed by \n
+  NewlineCRLF,
+  // (*ANYCRLF): Specifies a newline convention: \r, \n or \r\n
+  NewlineAnyCRLF,
+  // (*ANY): Specifies a newline convention: all Unicode newline sequences
+  // (?:\r\n|[\r\n\v\f\x85\u2028\u2029])
+  NewlineAny,
+  // (*BSR_ANYCRLF): Restricts what \R matches to \r, \n, or \r\n
+  BsrAnyCRLF,
+  // (*BSR_UNICODE): Makes \R match any Unicode newline sequence
+  BsrUnicode,
+  // (?i): Case-insensitive matching
+  CaseInsensitive,
+  // (?J): Duplicate named capture groups are allowed
+  DuplicateNamedCaptureGroups,
+  // (?m): Multiline mode
+  Multiline,
+  // (?s): Single line mode. Dot matches all characters, including newlines
+  DotAll,
+  // (?U): Ungreedy mode
+  Ungreedy,
+  // (?x): Extended mode. Ignores unescaped whitespace and comments outside character classes
+  Extended,
+
+  // The maximum value for the option setting bit offset enum
+  MAX
+};
+
 // The kind representing an empty expression, which matches everything, including the empty string.
 struct EmptyKind {};
 
@@ -77,7 +120,7 @@ struct RepetitionKind {
   // Whether the repetition is greedy
   bool greedy_;
   // The subexpression being repeated
-  std::unique_ptr<HirKind> sub_;
+  std::unique_ptr<Hir> sub_;
 };
 
 // The kind representing a capture group
@@ -87,22 +130,22 @@ struct CaptureKind {
   // The name of the capture group, if any.
   std::string name_;
   // The subexpression captured by this group, which may be empty.
-  std::unique_ptr<HirKind> sub_;
+  std::unique_ptr<Hir> sub_;
 };
 
 // The kind representing a concatenation of subexpressions
-struct ConcatKind : public std::vector<std::unique_ptr<HirKind>> {
+struct ConcatKind : public std::vector<std::unique_ptr<Hir>> {
 private:
-  using Base = std::vector<std::unique_ptr<HirKind>>;
+  using Base = std::vector<std::unique_ptr<Hir>>;
 
 public:
   using Base::Base;
 };
 
 // The kind representing an alternation of subexpressions
-struct AlternationKind : public std::vector<std::unique_ptr<HirKind>> {
+struct AlternationKind : public std::vector<std::unique_ptr<Hir>> {
 private:
-  using Base = std::vector<std::unique_ptr<HirKind>>;
+  using Base = std::vector<std::unique_ptr<Hir>>;
 
 public:
   using Base::Base;

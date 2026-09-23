@@ -119,17 +119,17 @@ private:
   static std::u32string utf8ToUtf32(const std::string& text);
 
   // Flatten the HIR tree by merging nested concatenations and alternations into a single level
-  static void flatten(HirKind* kind);
+  static void flatten(Hir* hir);
 
   // Append a literal string to the given HIR node
-  static void appendLiteral(HirKind* parent, const std::string& text);
+  static void appendLiteral(Hir* parent, const std::string& text);
 
   // Add a child HIR node to the given parent HIR node
-  static void addHirNode(HirKind* parent, std::unique_ptr<HirKind>&& child);
+  static void addHirNode(Hir* parent, std::unique_ptr<Hir>&& child);
 
 private:
   Hir& hir_;
   bool should_visit_next_child_{true};
-  std::stack<HirKind*> hir_kind_stack_;
+  std::stack<Hir*> stack_;
 };
 } // namespace Sregex::Parser

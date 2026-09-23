@@ -42,52 +42,185 @@ std::any Visitor::visitPcre(Antlr4Gen::PCREParser::PcreContext* ctx) {
   hir_.kind = AlternationKind{};
 
   // Visit children
-  hir_kind_stack_.push(&hir_.kind);
+  stack_.push(&hir_);
   std::any result = visitChildren(ctx);
+  stack_.pop();
+  assert(stack_.empty());
+
   if (result.type() == typeid(std::string)) {
     return result;
   }
-  hir_kind_stack_.pop();
-  assert(hir_kind_stack_.empty());
 
   // Flatten the HIR tree
-  flatten(&hir_.kind);
+  flatten(&hir_);
 
   return {};
 }
 
 std::any Visitor::visitAlternation(Antlr4Gen::PCREParser::AlternationContext* ctx) {
   // Visit children within a new alternation context
-  std::unique_ptr<HirKind> alt_kind = std::make_unique<HirKind>(AlternationKind{});
-  hir_kind_stack_.push(alt_kind.get());
+  std::unique_ptr<Hir> hir =
+      std::make_unique<Hir>(Hir{AlternationKind{}, stack_.top()->option_settings_});
+  stack_.push(hir.get());
   std::any result = visitChildren(ctx);
-  hir_kind_stack_.pop();
+  stack_.pop();
+
+  if (result.type() == typeid(std::string)) {
+    return result;
+  }
 
   // Add the newly created HIR node to the parent
-  assert(!hir_kind_stack_.empty());
-  flatten(alt_kind.get());
-  addHirNode(hir_kind_stack_.top(), std::move(alt_kind));
+  assert(!stack_.empty());
+  flatten(hir.get());
+  addHirNode(stack_.top(), std::move(hir));
 
   return result;
 }
 
 std::any Visitor::visitExpr(Antlr4Gen::PCREParser::ExprContext* ctx) {
   // Visit children within a new concatenation context
-  std::unique_ptr<HirKind> concat_kind = std::make_unique<HirKind>(ConcatKind{});
-  hir_kind_stack_.push(concat_kind.get());
+  std::unique_ptr<Hir> hir =
+      std::make_unique<Hir>(Hir{ConcatKind{}, stack_.top()->option_settings_});
+  stack_.push(hir.get());
   std::any result = visitChildren(ctx);
-  hir_kind_stack_.pop();
+  stack_.pop();
+
+  if (result.type() == typeid(std::string)) {
+    return result;
+  }
 
   // Add the newly created HIR node to the parent
-  assert(!hir_kind_stack_.empty());
-  flatten(concat_kind.get());
-  addHirNode(hir_kind_stack_.top(), std::move(concat_kind));
+  assert(!stack_.empty());
+  flatten(hir.get());
+  addHirNode(stack_.top(), std::move(hir));
 
   return result;
 }
 
 std::any Visitor::visitOption_setting(Antlr4Gen::PCREParser::Option_settingContext* ctx) {
-  RETURN_ERROR("unsupported option setting");
+  auto* parent = stack_.top();
+
+#define SET(x) parent->option_settings_.set(static_cast<size_t>(OptionSettingBitOffset::x))
+#define RESET(x) parent->option_settings_.reset(static_cast<size_t>(OptionSettingBitOffset::x))
+  auto text = ctx->getText();
+  assert(text.size() > 1);
+  switch (text[1]) {
+  case '*': {
+    // Ensure that the verb appears at the start of the pattern by checking if the root alternation
+    // is empty.
+    const auto& root_alt = hir_.kind.as<AlternationKind>();
+    if (!root_alt.empty()) {
+      RETURN_ERROR("Verb must appear at the start of the pattern");
+    }
+
+    // Sets the appropriate option
+    if (ctx->utf()) {
+      if (text.ends_with("16)")) {
+        SET(UTF16);
+      } else if (text.ends_with("32)")) {
+        SET(UTF32);
+      } else {
+        SET(UTF8);
+      }
+    } else if (ctx->ucp()) {
+      SET(UCP);
+    } else if (ctx->no_auto_possess()) {
+      SET(NoAutoPossess);
+    } else if (ctx->no_start_opt()) {
+      SET(NoStartOpt);
+    } else if (ctx->newline_conventions()) {
+      if (text.ends_with("CR)")) {
+        SET(NewlineCR);
+      } else if (text.ends_with("*LF)")) {
+        SET(NewlineLF);
+      } else if (text.ends_with("*CRLF)")) {
+        SET(NewlineCRLF);
+      } else if (text.ends_with("ANYCRLF)")) {
+        SET(NewlineAnyCRLF);
+      } else if (text.ends_with("ANY)")) {
+        SET(NewlineAny);
+      } else {
+        assert(false);
+        RETURN_ERROR("unsupported newline convention");
+      }
+    } else if (ctx->limit_match()) {
+      RETURN_ERROR("unsupported option setting: limit_match");
+    } else if (ctx->limit_recursion()) {
+      RETURN_ERROR("unsupported option setting: limit_recursion");
+    } else if (ctx->bsr_anycrlf()) {
+      SET(BsrAnyCRLF);
+    } else if (ctx->bsr_unicode()) {
+      SET(BsrUnicode);
+    } else {
+      assert(false);
+      RETURN_ERROR("unsupported option setting");
+    }
+  } break;
+  case '?': {
+    // Sets the appropriate inline option flags
+    bool disable = false;
+    for (size_t i = 2; i < text.size() - 1; ++i) {
+      switch (text[i]) {
+      case '-':
+        disable = true;
+        break;
+      case 'i':
+        if (!disable) {
+          SET(CaseInsensitive);
+        } else {
+          RESET(CaseInsensitive);
+        }
+        break;
+      case 'J':
+        if (!disable) {
+          SET(DuplicateNamedCaptureGroups);
+        } else {
+          RESET(DuplicateNamedCaptureGroups);
+        }
+        break;
+      case 'm':
+        if (!disable) {
+          SET(Multiline);
+        } else {
+          RESET(Multiline);
+        }
+        break;
+      case 's':
+        if (!disable) {
+          SET(DotAll);
+        } else {
+          RESET(DotAll);
+        }
+        break;
+      case 'U':
+        if (!disable) {
+          SET(Ungreedy);
+        } else {
+          RESET(Ungreedy);
+        }
+        break;
+      case 'x':
+        if (!disable) {
+          SET(Extended);
+        } else {
+          RESET(Extended);
+        }
+        break;
+      default:
+        assert(false);
+        RETURN_ERROR("unsupported option setting flag");
+      }
+    }
+  } break;
+  default:
+    assert(false);
+    RETURN_ERROR("unsupported option setting");
+    break;
+  }
+#undef SET
+#undef RESET
+
+  return {};
 }
 
 std::any
@@ -130,8 +263,9 @@ std::any Visitor::visitComment(Antlr4Gen::PCREParser::CommentContext* ctx) {
 }
 
 std::any Visitor::visitQuantifier(Antlr4Gen::PCREParser::QuantifierContext* ctx) {
-  std::unique_ptr<HirKind> rep_kind = std::make_unique<HirKind>(RepetitionKind{});
-  auto& rep = rep_kind->as<RepetitionKind>();
+  std::unique_ptr<Hir> hir =
+      std::make_unique<Hir>(Hir{RepetitionKind{}, stack_.top()->option_settings_});
+  auto& rep = hir->kind.as<RepetitionKind>();
 
   auto text = ctx->getText();
   switch (text[0]) {
@@ -173,7 +307,7 @@ std::any Visitor::visitQuantifier(Antlr4Gen::PCREParser::QuantifierContext* ctx)
         if constexpr (std::is_same_v<T, ConcatKind>) {
           if (!parent.empty()) {
             rep.sub_ = std::move(parent.back());
-            parent.back() = std::move(rep_kind);
+            parent.back() = std::move(hir);
           } else {
             assert(false);
           }
@@ -181,7 +315,7 @@ std::any Visitor::visitQuantifier(Antlr4Gen::PCREParser::QuantifierContext* ctx)
           assert(false);
         }
       },
-      *hir_kind_stack_.top());
+      stack_.top()->kind);
 
   return std::any();
 }
@@ -193,7 +327,7 @@ std::any Visitor::visitCharacter(Antlr4Gen::PCREParser::CharacterContext* ctx) {
     return std::unexpected(decode_escape_result.error());
   }
 
-  appendLiteral(hir_kind_stack_.top(), decode_escape_result.value());
+  appendLiteral(stack_.top(), decode_escape_result.value());
 
   return {};
 }
@@ -204,30 +338,36 @@ std::any Visitor::visitCharacter_type(Antlr4Gen::PCREParser::Character_typeConte
     RETURN_ERROR(char_type_result.error());
   }
 
-  addHirNode(hir_kind_stack_.top(), std::make_unique<HirKind>(char_type_result.value()));
+  addHirNode(stack_.top(),
+             std::make_unique<Hir>(Hir{char_type_result.value(), stack_.top()->option_settings_}));
 
   return {};
 }
 
 std::any Visitor::visitCharacter_class(Antlr4Gen::PCREParser::Character_classContext* ctx) {
   // Visit children within a new unicode class context
-  std::unique_ptr<HirKind> unicode_class_kind = std::make_unique<HirKind>(UnicodeClassKind{});
-  hir_kind_stack_.push(unicode_class_kind.get());
+  std::unique_ptr<Hir> hir =
+      std::make_unique<Hir>(Hir{UnicodeClassKind{}, stack_.top()->option_settings_});
+  stack_.push(hir.get());
   std::any result = visitChildren(ctx);
-  hir_kind_stack_.pop();
+  stack_.pop();
+
+  if (result.type() == typeid(std::string)) {
+    return result;
+  }
 
   // Merge overlapping unicode class ranges
-  mergeUnicodeClassRanges(unicode_class_kind->as<UnicodeClassKind>());
+  mergeUnicodeClassRanges(hir->kind.as<UnicodeClassKind>());
 
   // Handle negation of the character class
   if (ctx->negate) {
-    UnicodeClassKind negated_class = makeNegated(unicode_class_kind->as<UnicodeClassKind>());
-    *unicode_class_kind = std::move(negated_class);
+    UnicodeClassKind negated_class = makeNegated(hir->kind.as<UnicodeClassKind>());
+    hir->kind = std::move(negated_class);
   }
 
   // Add the newly created HIR node to the parent
-  assert(!hir_kind_stack_.empty());
-  addHirNode(hir_kind_stack_.top(), std::move(unicode_class_kind));
+  assert(!stack_.empty());
+  addHirNode(stack_.top(), std::move(hir));
 
   return {};
 }
@@ -274,7 +414,7 @@ Visitor::visitCharacter_class_atom(Antlr4Gen::PCREParser::Character_class_atomCo
             assert(false);
           }
         },
-        *hir_kind_stack_.top());
+        stack_.top()->kind);
   }
 
   // Handle POSIX character classes
@@ -298,7 +438,7 @@ Visitor::visitCharacter_class_atom(Antlr4Gen::PCREParser::Character_class_atomCo
             assert(false);
           }
         },
-        *hir_kind_stack_.top());
+        stack_.top()->kind);
   }
 
   // Handle escaped characters
@@ -324,7 +464,7 @@ Visitor::visitCharacter_class_atom(Antlr4Gen::PCREParser::Character_class_atomCo
             assert(false);
           }
         },
-        *hir_kind_stack_.top());
+        stack_.top()->kind);
   }
 
   // Handle character types
@@ -347,7 +487,7 @@ Visitor::visitCharacter_class_atom(Antlr4Gen::PCREParser::Character_class_atomCo
             assert(false);
           }
         },
-        *hir_kind_stack_.top());
+        stack_.top()->kind);
   }
 
   // Handle any other characters
@@ -372,7 +512,7 @@ Visitor::visitCharacter_class_atom(Antlr4Gen::PCREParser::Character_class_atomCo
             assert(false);
           }
         },
-        *hir_kind_stack_.top());
+        stack_.top()->kind);
   }
   return {};
 }
@@ -383,45 +523,49 @@ Visitor::visitPosix_character_class(Antlr4Gen::PCREParser::Posix_character_class
 }
 
 std::any Visitor::visitLetter(Antlr4Gen::PCREParser::LetterContext* ctx) {
-  appendLiteral(hir_kind_stack_.top(), ctx->getText());
+  appendLiteral(stack_.top(), ctx->getText());
   return {};
 }
 
 std::any Visitor::visitDigit(Antlr4Gen::PCREParser::DigitContext* ctx) {
-  appendLiteral(hir_kind_stack_.top(), ctx->getText());
+  appendLiteral(stack_.top(), ctx->getText());
   return {};
 }
 
 std::any Visitor::visitAnchor(Antlr4Gen::PCREParser::AnchorContext* ctx) {
-  auto parent = hir_kind_stack_.top();
+  auto parent = stack_.top();
   auto text = ctx->getText();
   switch (text[0]) {
   case '^':
-    addHirNode(parent, std::make_unique<HirKind>(AnchorKind::Start));
+    addHirNode(parent, std::make_unique<Hir>(Hir{AnchorKind::Start, parent->option_settings_}));
     break;
   case '$':
-    addHirNode(parent, std::make_unique<HirKind>(AnchorKind::End));
+    addHirNode(parent, std::make_unique<Hir>(Hir{AnchorKind::End, parent->option_settings_}));
     break;
   case '\\':
     if (text.size() >= 2) {
       switch (text[1]) {
       case 'b':
-        addHirNode(parent, std::make_unique<HirKind>(AnchorKind::WordBoundary));
+        addHirNode(parent,
+                   std::make_unique<Hir>(Hir{AnchorKind::WordBoundary, parent->option_settings_}));
         break;
       case 'B':
-        addHirNode(parent, std::make_unique<HirKind>(AnchorKind::NonWordBoundary));
+        addHirNode(parent, std::make_unique<Hir>(
+                               Hir{AnchorKind::NonWordBoundary, parent->option_settings_}));
         break;
       case 'A':
-        addHirNode(parent, std::make_unique<HirKind>(AnchorKind::Start));
+        addHirNode(parent, std::make_unique<Hir>(Hir{AnchorKind::Start, parent->option_settings_}));
         break;
       case 'z':
-        addHirNode(parent, std::make_unique<HirKind>(AnchorKind::End));
+        addHirNode(parent, std::make_unique<Hir>(Hir{AnchorKind::End, parent->option_settings_}));
         break;
       case 'Z':
-        addHirNode(parent, std::make_unique<HirKind>(AnchorKind::EndLine));
+        addHirNode(parent,
+                   std::make_unique<Hir>(Hir{AnchorKind::EndLine, parent->option_settings_}));
         break;
       case 'G':
-        addHirNode(parent, std::make_unique<HirKind>(AnchorKind::LastMatchPosition));
+        addHirNode(parent, std::make_unique<Hir>(
+                               Hir{AnchorKind::LastMatchPosition, parent->option_settings_}));
         break;
       default:
         assert(false);
@@ -447,7 +591,7 @@ std::any Visitor::visitOther(Antlr4Gen::PCREParser::OtherContext* ctx) {
     return std::unexpected(result.error());
   }
 
-  appendLiteral(hir_kind_stack_.top(), result.value());
+  appendLiteral(stack_.top(), result.value());
 
   return {};
 }
@@ -621,48 +765,49 @@ std::u32string Visitor::utf8ToUtf32(const std::string& text) {
   return conv.from_bytes(text);
 }
 
-void Visitor::flatten(HirKind* kind) {
+void Visitor::flatten(Hir* hir) {
   std::visit(
-      [&](auto&& node) {
-        using T = std::decay_t<decltype(node)>;
+      [&](auto&& kind) {
+        using T = std::decay_t<decltype(kind)>;
         if constexpr (std::is_same_v<T, AlternationKind> || std::is_same_v<T, ConcatKind>) {
           // If there is only one element in the AlternationKind or ConcatKind, use it directly
-          if (node.size() == 1) {
-            std::unique_ptr<HirKind> front = std::move(node.front());
-            *kind = std::move(*front);
+          if (kind.size() == 1) {
+            std::unique_ptr<Hir> front = std::move(kind.front());
+            hir->kind = std::move(front->kind);
+            hir->option_settings_ = std::move(front->option_settings_);
 
             // Recursively flatten the subexpression
-            flatten(kind);
+            flatten(hir);
           }
         }
       },
-      *kind);
+      hir->kind);
 }
 
-void Visitor::appendLiteral(HirKind* parent, const std::string& text) {
+void Visitor::appendLiteral(Hir* parent, const std::string& text) {
   assert(parent);
   if (parent) {
     std::visit(
         [&](auto&& kind) {
           using T = std::decay_t<decltype(kind)>;
           if constexpr (std::is_same_v<T, AlternationKind> || std::is_same_v<T, ConcatKind>) {
-            if (!kind.empty() && kind.back()->template is<LiteralKind>()) {
+            if (!kind.empty() && kind.back()->kind.template is<LiteralKind>()) {
               // Merge consecutive letter literals into a single LiteralKind
-              auto& literal = kind.back()->template as<LiteralKind>();
+              auto& literal = kind.back()->kind.template as<LiteralKind>();
               literal += text;
             } else {
-              auto node = std::make_unique<HirKind>(LiteralKind(text));
+              auto node = std::make_unique<Hir>(Hir{LiteralKind(text), parent->option_settings_});
               kind.push_back(std::move(node));
             }
           } else {
             assert(false);
           }
         },
-        *parent);
+        parent->kind);
   }
 }
 
-void Visitor::addHirNode(HirKind* parent, std::unique_ptr<HirKind>&& child) {
+void Visitor::addHirNode(Hir* parent, std::unique_ptr<Hir>&& child) {
   assert(parent);
   if (parent) {
     std::visit(
@@ -674,7 +819,7 @@ void Visitor::addHirNode(HirKind* parent, std::unique_ptr<HirKind>&& child) {
             assert(false);
           }
         },
-        *parent);
+        parent->kind);
   }
 }
 
