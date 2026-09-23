@@ -233,7 +233,95 @@ std::any Visitor::visitCallout(Antlr4Gen::PCREParser::CalloutContext* ctx) {
 }
 
 std::any Visitor::visitCapture(Antlr4Gen::PCREParser::CaptureContext* ctx) {
-  RETURN_ERROR("unsupported capture");
+  std::unique_ptr<Hir> hir =
+      std::make_unique<Hir>(Hir{CaptureKind{}, stack_.top()->option_settings_});
+
+  // Set the index for the capture group
+  auto& cap = hir->kind.as<CaptureKind>();
+  cap.index_ = capture_group_index_++;
+
+  // Handle inline option setting flags for the capture group
+  if (!ctx->option_setting_flag().empty()) {
+    auto text = ctx->getText();
+    assert(text.size() > 2);
+    auto pos = text.find(':', 2);
+    assert(pos != std::string::npos);
+    if (text.size() < 2 || pos == std::string::npos) {
+      RETURN_ERROR("invalid option setting flag");
+    }
+
+#define SET(x) hir->option_settings_.set(static_cast<size_t>(OptionSettingBitOffset::x))
+#define RESET(x) hir->option_settings_.reset(static_cast<size_t>(OptionSettingBitOffset::x))
+    bool disable = false;
+    for (size_t i = 2; i < pos; ++i) {
+      switch (text[i]) {
+      case '-':
+        disable = true;
+        break;
+      case 'i':
+        if (!disable) {
+          SET(CaseInsensitive);
+        } else {
+          RESET(CaseInsensitive);
+        }
+        break;
+      case 'J':
+        if (!disable) {
+          SET(DuplicateNamedCaptureGroups);
+        } else {
+          RESET(DuplicateNamedCaptureGroups);
+        }
+        break;
+      case 'm':
+        if (!disable) {
+          SET(Multiline);
+        } else {
+          RESET(Multiline);
+        }
+        break;
+      case 's':
+        if (!disable) {
+          SET(DotAll);
+        } else {
+          RESET(DotAll);
+        }
+        break;
+      case 'U':
+        if (!disable) {
+          SET(Ungreedy);
+        } else {
+          RESET(Ungreedy);
+        }
+        break;
+      case 'x':
+        if (!disable) {
+          SET(Extended);
+        } else {
+          RESET(Extended);
+        }
+        break;
+      default:
+        assert(false);
+        RETURN_ERROR("unsupported option setting flag");
+      }
+    }
+#undef SET
+#undef RESET
+  }
+
+  // Visit children within a new capture context
+  stack_.push(hir.get());
+  std::any result = visitChildren(ctx);
+  stack_.pop();
+  if (result.type() == typeid(std::string)) {
+    return result;
+  }
+
+  // Add the newly created HIR node to the parent
+  assert(!stack_.empty());
+  addHirNode(stack_.top(), std::move(hir));
+
+  return {};
 }
 
 std::any Visitor::visitAtomic_group(Antlr4Gen::PCREParser::Atomic_groupContext* ctx) {
@@ -585,6 +673,21 @@ std::any Visitor::visitQuoting(Antlr4Gen::PCREParser::QuotingContext* ctx) {
   RETURN_ERROR("unsupported quoting");
 }
 
+std::any Visitor::visitName(Antlr4Gen::PCREParser::NameContext* ctx) {
+  auto parent = stack_.top();
+  std::visit(
+      [&](auto&& parent) {
+        using T = std::decay_t<decltype(parent)>;
+        if constexpr (std::is_same_v<T, CaptureKind>) {
+          parent.name_ = ctx->getText();
+        } else {
+          assert(false);
+        }
+      },
+      stack_.top()->kind);
+  return {};
+}
+
 std::any Visitor::visitOther(Antlr4Gen::PCREParser::OtherContext* ctx) {
   auto result = decodeEscapeCharacter(ctx->getText());
   if (!result) {
@@ -815,6 +918,8 @@ void Visitor::addHirNode(Hir* parent, std::unique_ptr<Hir>&& child) {
           using T = std::decay_t<decltype(kind)>;
           if constexpr (std::is_same_v<T, AlternationKind> || std::is_same_v<T, ConcatKind>) {
             kind.push_back(std::move(child));
+          } else if constexpr (std::is_same_v<T, CaptureKind>) {
+            kind.sub_ = std::move(child);
           } else {
             assert(false);
           }

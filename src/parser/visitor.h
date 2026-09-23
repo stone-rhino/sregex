@@ -87,6 +87,8 @@ protected:
 
   std::any visitQuoting(Antlr4Gen::PCREParser::QuotingContext* ctx) override;
 
+  std::any visitName(Antlr4Gen::PCREParser::NameContext* ctx) override;
+
   std::any visitOther(Antlr4Gen::PCREParser::OtherContext* ctx) override;
 
   bool shouldVisitNextChild(antlr4::tree::ParseTree*, const std::any&) override {
@@ -131,5 +133,6 @@ private:
   Hir& hir_;
   bool should_visit_next_child_{true};
   std::stack<Hir*> stack_;
+  uint32_t capture_group_index_{0};
 };
 } // namespace Sregex::Parser

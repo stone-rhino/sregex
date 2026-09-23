@@ -571,4 +571,45 @@ TEST(HirTest, RepetitionKindWithPossessive) {
   }
 }
 
+TEST(HirTest, CaptureKind) {
+  {
+    auto result = Sregex::Parser::Hir::parse("(?<hi>helloworld)");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<CaptureKind>());
+    const auto& cap = hir->kind.as<CaptureKind>();
+    EXPECT_EQ(cap.index_, 0);
+    EXPECT_EQ(cap.name_, "hi");
+    ASSERT_TRUE(cap.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(cap.sub_->kind.as<LiteralKind>(), "helloworld");
+  }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("(?im:helloworld)");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<CaptureKind>());
+    const auto& cap = hir->kind.as<CaptureKind>();
+    EXPECT_EQ(cap.index_, 0);
+    EXPECT_EQ(cap.name_, "");
+    EXPECT_TRUE(
+        hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::CaseInsensitive)));
+    EXPECT_TRUE(hir->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::Multiline)));
+    ASSERT_TRUE(cap.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(cap.sub_->kind.as<LiteralKind>(), "helloworld");
+    EXPECT_TRUE(cap.sub_->option_settings_.test(
+        static_cast<size_t>(OptionSettingBitOffset::CaseInsensitive)));
+    EXPECT_TRUE(
+        cap.sub_->option_settings_.test(static_cast<size_t>(OptionSettingBitOffset::Multiline)));
+  }
+}
+
 } // namespace Sregex::Parser
