@@ -3,4 +3,5 @@ file(GLOB local_source
   *.cc
 )
 
+add_subdirectory(automata)
 add_subdirectory(parser)

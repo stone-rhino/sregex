@@ -6,4 +6,5 @@ file(GLOB local_source
 find_package(GTest CONFIG REQUIRED)
 include(GoogleTest)
 
+add_subdirectory(automata)
 add_subdirectory(parser)
