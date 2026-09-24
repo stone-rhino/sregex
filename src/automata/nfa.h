@@ -20,10 +20,12 @@
  */
 #pragma once
 
+#include <optional>
 #include <span>
 #include <vector>
 
 #include "automaton.h"
+#include "src/parser/hir_kind.h"
 #include "transition.h"
 
 namespace Sregex::Automata {
@@ -61,6 +63,7 @@ protected:
 
 private:
   struct State {
+    std::optional<Parser::AnchorKind> anchor_;
     std::vector<Transition> transitions_;
     std::vector<StateId> epsilons_;
     void addTransition(char c, StateId target) {

@@ -53,7 +53,78 @@ Nfa NfaBuilder::withPatterns(const std::span<const std::string>& patterns) {
   return withAlternation(nfas);
 }
 
-Nfa NfaBuilder::withHir(const Parser::Hir& hir) { throw "Not implemented!"; }
+Nfa NfaBuilder::withHir(const Parser::Hir& hir) {
+  using namespace Parser;
+
+  Nfa nfa;
+
+  std::visit(
+      [&](auto&& kind) {
+        using T = std::decay_t<decltype(kind)>;
+        if constexpr (std::is_same_v<T, LiteralKind>) {
+          nfa = withString(kind);
+        } else if constexpr (std::is_same_v<T, UnicodeClassKind>) {
+          std::vector<Nfa> nfas;
+          for (const auto& range : kind.ranges_) {
+            nfas.emplace_back(withRange(range.start_, range.end_));
+          }
+          if (nfas.size() == 1) {
+            nfa = std::move(nfas[0]);
+          } else {
+            nfa = withAlternation(nfas);
+          }
+        } else if constexpr (std::is_same_v<T, AnchorKind>) {
+          nfa = withAnchor(kind);
+        } else if constexpr (std::is_same_v<T, RepetitionKind>) {
+          nfa = withHir(*kind.sub_);
+          if (!nfa.ok()) {
+            return;
+          }
+
+          auto result = withRangeRepetition(nfa, kind.min_, kind.max_);
+          if (!result) {
+            nfa.err_ = result.error();
+            return;
+          }
+          nfa = std::move(result.value());
+        } else if constexpr (std::is_same_v<T, CaptureKind>) {
+          nfa = withHir(*kind.sub_);
+        } else if constexpr (std::is_same_v<T, ConcatKind>) {
+          for (const auto& sub : kind) {
+            Nfa sub_nfa = withHir(*sub);
+            if (!sub_nfa.ok()) {
+              nfa.err_ = sub_nfa.err();
+              return;
+            }
+            nfa = withConcat(nfa, sub_nfa);
+          }
+        } else if constexpr (std::is_same_v<T, AlternationKind>) {
+          std::vector<Nfa> nfas;
+          for (const auto& sub : kind) {
+            Nfa sub_nfa = withHir(*sub);
+            if (!sub_nfa.ok()) {
+              nfa.err_ = sub_nfa.err();
+              return;
+            }
+            nfas.emplace_back(std::move(sub_nfa));
+          }
+          nfa = withAlternation(nfas);
+        }
+      },
+      hir.kind);
+
+  return nfa;
+}
+
+Nfa NfaBuilder::withAnchor(Parser::AnchorKind anchor) {
+  Nfa nfa;
+  nfa.states_.resize(2);
+  nfa.start_state_ = NEW_DEFAULT_START_STATE;
+  nfa.accept_state_ = NEW_DEFAULT_ACCEPT_STATE;
+  nfa.states_[NEW_DEFAULT_START_STATE].anchor_ = anchor;
+
+  return nfa;
+}
 
 Nfa NfaBuilder::withChar(char c) {
   Nfa nfa;
@@ -218,9 +289,10 @@ Nfa NfaBuilder::withQuestionMark(const Nfa& base_nfa) {
     return nfa;
   }
 
-  // Create a new start state that has epsilon transitions to the start state of the base_nfa and to
-  // the new accept state. The epsilon transition to the new accept will be added after the NFA (a)
-  // has been processed, allowing for zero occurrences of the pattern
+  // Create a new start state that has epsilon transitions to the start state of the base_nfa and
+  // to the new accept state. The epsilon transition to the new accept will be added after the NFA
+  // (a) has been processed, allowing for zero occurrences of the pattern
+  nfa.start_state_ = NEW_DEFAULT_START_STATE;
   nfa.states_.reserve(base_nfa.states_.size() + 2); // +2 for the new start and accept state
   nfa.states_.emplace_back();
   nfa.states_.front().addEpsilon(base_nfa.start_state_ + 1); // +1 for the new start state
@@ -229,8 +301,8 @@ Nfa NfaBuilder::withQuestionMark(const Nfa& base_nfa) {
   nfa.states_.insert(nfa.states_.end(), base_nfa.states_.begin(), base_nfa.states_.end());
 
   // Create a new accept state that the base_nfa will transition to via an epsilon transition, and
-  // add an epsilon transition from the new start state to this new accept state, allowing for zero
-  // or one occurrences of the pattern.
+  // add an epsilon transition from the new start state to this new accept state, allowing for
+  // zero or one occurrences of the pattern.
   nfa.accept_state_ = nfa.states_.size();
   nfa.states_.emplace_back();
   nfa.states_[base_nfa.accept_state_ + 1].addEpsilon(nfa.accept_state_);

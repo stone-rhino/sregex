@@ -92,7 +92,7 @@ struct UnicodeClassKind {
 };
 
 // The kind representing an anchor
-enum class AnchorKind {
+enum class AnchorKind : uint32_t {
   // ^ or \A: Match the start of the string
   Start,
   // $ or \z: Match the end of the string

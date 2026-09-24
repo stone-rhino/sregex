@@ -23,8 +23,9 @@
 #include "gtest/gtest.h"
 
 namespace Sregex::Automata {
-TEST(NfaTest, Basic) {
-  std::string hello = "hello";
-  Nfa nfa({&hello, 1});
+TEST(NfaTest, Constructor) {
+  std::vector<std::string> patterns = {"(你*|好+|(hello)?|(hi){2,4})+世界", "ab12", "ab34"};
+  Nfa nfa(patterns);
+  EXPECT_TRUE(nfa.ok());
 }
 } // namespace Sregex::Automata

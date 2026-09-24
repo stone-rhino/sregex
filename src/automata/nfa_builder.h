@@ -37,6 +37,7 @@ public:
   static Nfa withPattern(const std::string& pattern);
   static Nfa withPatterns(const std::span<const std::string>& patterns);
   static Nfa withHir(const Parser::Hir& hir);
+  static Nfa withAnchor(Parser::AnchorKind anchor);
   static Nfa withChar(char c);
   static Nfa withString(const std::string& str);
   static Nfa withRange(uint32_t start, uint32_t end);
