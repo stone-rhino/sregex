@@ -34,6 +34,7 @@ namespace Sregex::Automata {
  */
 class Nfa : public Automaton<Nfa> {
   friend class NfaBuilder;
+  friend class Automaton<Nfa>;
 
 public:
   Nfa() = default;
@@ -60,6 +61,7 @@ public:
 
 protected:
   bool isMatchImpl(const char* input, size_t length, bool partial) const;
+  std::string toDotImpl() const;
 
 private:
   struct State {

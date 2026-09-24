@@ -20,6 +20,8 @@
  */
 #include "nfa.h"
 
+#include <format>
+
 #include "nfa_builder.h"
 
 namespace Sregex::Automata {
@@ -30,4 +32,70 @@ Nfa::Nfa(const std::span<const std::string>& patterns) {
 bool Nfa::isMatchImpl(const char* input, size_t length, bool partial) const {
   throw "Not implemented!";
 }
+
+std::string asciiLabelToken(char c) {
+  if (c == ' ') {
+    return "SP";
+  }
+
+  if (c == '"' || c == '\\') {
+    return std::format("0x{:02x}", c);
+  }
+
+  if (c >= 0x21 && c <= 0x7e) {
+    return std::format("{}", c);
+  }
+
+  return std::format("0x{:02x}", c);
+}
+
+std::string scalarLabelToken(uint32_t unicode) {
+  if (unicode <= 0xff) {
+    return asciiLabelToken(unicode);
+  }
+
+  return std::format("U+{:04x}", unicode);
+}
+
+std::string Nfa::toDotImpl() const {
+  std::string dot = "digraph NFA {\n";
+  dot.append("  rankdir=LR;\n");
+
+  // Add an invisible start node that points to the actual start state
+  dot.append("  start [shape=point];\n");
+  dot.append(std::format("  start -> {};\n", start_state_));
+
+  // Add the states and transitions
+  dot.append("  node [shape=circle];\n");
+  for (size_t i = 0; i < states_.size(); ++i) {
+    // Add the state with a double circle if it's an accept state
+    if (i == accept_state_) {
+      dot.append(std::format("  {} [shape=doublecircle];\n", i));
+    } else {
+      dot.append(std::format("  {};\n", i));
+    }
+
+    // Add the transitions for this state
+    for (const auto& transition : states_[i].transitions_) {
+      if (transition.range.start_ != transition.range.end_) {
+        dot.append(std::format("  {} -> {} [label=\"{}-{}\"];\n", i, transition.target,
+                               scalarLabelToken(transition.range.start_),
+                               scalarLabelToken(transition.range.end_)));
+      } else {
+        dot.append(std::format("  {} -> {} [label=\"{}\"];\n", i, transition.target,
+                               scalarLabelToken(transition.range.start_)));
+      }
+    }
+
+    // Add the epsilon transitions for this state
+    for (auto eid : states_[i].epsilons_) {
+      dot.append(std::format("  {} -> {} [label=\"ε\"];\n", i, eid));
+    }
+  }
+
+  dot.append("}\n");
+
+  return dot;
+}
+
 } // namespace Sregex::Automata

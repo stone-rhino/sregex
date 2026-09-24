@@ -68,9 +68,11 @@ public:
   void toDotSvg(const std::string& outputFile) const {
     std::string dot = toDot();
     std::string dot_file = outputFile + ".dot";
-    std::ofstream ofs(dot_file);
-    if (ofs) {
-      ofs << dot;
+    {
+      std::ofstream ofs(dot_file);
+      if (ofs) {
+        ofs << dot;
+      }
     }
     std::string command = "dot -Tsvg -o " + outputFile + " " + dot_file;
     FILE* pipe = ::popen(command.c_str(), "r");
