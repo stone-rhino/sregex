@@ -20,16 +20,62 @@
  */
 #pragma once
 
+#include <span>
 #include <vector>
 
 #include "automaton.h"
+#include "transition.h"
 
 namespace Sregex::Automata {
+/**
+ * A non-deterministic finite automaton (NFA) for pattern matching
+ */
 class Nfa : public Automaton<Nfa> {
+  friend class NfaBuilder;
+
 public:
-  Nfa(const std::vector<std::string>& patterns);
+  Nfa() = default;
+  Nfa(const std::span<const std::string>& patterns);
+  Nfa(const Nfa& other) = delete;
+  Nfa& operator=(const Nfa& other) = delete;
+  Nfa(Nfa&& other) = default;
+  Nfa& operator=(Nfa&& other) = default;
+
+public:
+  /**
+   * Checks if the NFA is in a valid state (no errors)
+   *
+   * @return true if the NFA is in a valid state, false otherwise
+   */
+  bool ok() const { return err_.empty(); }
+
+  /**
+   * Returns the error message if the NFA is in an invalid state
+   *
+   * @return the error message string
+   */
+  const std::string& err() const { return err_; }
 
 protected:
   bool isMatchImpl(const char* input, size_t length, bool partial) const;
+
+private:
+  struct State {
+    std::vector<Transition> transitions_;
+    std::vector<StateId> epsilons_;
+    void addTransition(char c, StateId target) {
+      transitions_.push_back({{static_cast<uint32_t>(c), static_cast<uint32_t>(c)}, target});
+    }
+    void addTransition(uint32_t start, uint32_t end, StateId target) {
+      transitions_.push_back({{start, end}, target});
+    }
+    void addEpsilon(StateId target) { epsilons_.emplace_back(target); }
+  };
+
+private:
+  std::vector<State> states_;
+  StateId start_state_;
+  StateId accept_state_;
+  std::string err_;
 };
 } // namespace Sregex::Automata

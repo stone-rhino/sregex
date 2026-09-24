@@ -23,5 +23,8 @@
 #include "gtest/gtest.h"
 
 namespace Sregex::Automata {
-TEST(NfaTest, Basic) {}
+TEST(NfaTest, Basic) {
+  std::string hello = "hello";
+  Nfa nfa({&hello, 1});
+}
 } // namespace Sregex::Automata

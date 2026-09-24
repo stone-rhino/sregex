@@ -20,7 +20,13 @@
  */
 #include "nfa.h"
 
+#include "nfa_builder.h"
+
 namespace Sregex::Automata {
+Nfa::Nfa(const std::span<const std::string>& patterns) {
+  *this = NfaBuilder::withPatterns(patterns);
+}
+
 bool Nfa::isMatchImpl(const char* input, size_t length, bool partial) const {
   throw "Not implemented!";
 }
