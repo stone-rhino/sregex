@@ -68,11 +68,12 @@ private:
     std::optional<Parser::AnchorKind> anchor_;
     std::vector<Transition> transitions_;
     std::vector<StateId> epsilons_;
-    void addTransition(char c, StateId target) {
-      transitions_.push_back({{static_cast<uint32_t>(c), static_cast<uint32_t>(c)}, target});
+    void addTransition(unsigned char c, StateId target) {
+      transitions_.push_back(
+          {static_cast<unsigned char>(c), static_cast<unsigned char>(c), target});
     }
-    void addTransition(uint32_t start, uint32_t end, StateId target) {
-      transitions_.push_back({{start, end}, target});
+    void addTransition(unsigned char start, unsigned char end, StateId target) {
+      transitions_.push_back({start, end, target});
     }
     void addEpsilon(StateId target) { epsilons_.emplace_back(target); }
   };

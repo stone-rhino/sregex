@@ -22,16 +22,14 @@
 
 #include <cstddef>
 
-#include "src/parser/hir_kind.h"
-
 namespace Sregex::Automata {
-using Range = Parser::UnicodeClassKind::Range;
 using StateId = size_t;
 
 struct Transition {
-  Range range;
-  StateId target;
+  unsigned char start_;
+  unsigned char end_;
+  StateId target_;
 
-  bool matches(char c) const { return c >= range.start_ && c <= range.end_; }
+  bool matches(unsigned char c) const { return c >= start_ && c <= end_; }
 };
 } // namespace Sregex::Automata

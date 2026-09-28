@@ -161,6 +161,8 @@ Nfa NfaBuilder::withRange(uint32_t start, uint32_t end) {
   nfa.states_.resize(2);
   nfa.start_state_ = NEW_DEFAULT_START_STATE;
   nfa.accept_state_ = NEW_DEFAULT_ACCEPT_STATE;
+  // FIXME(zhouyu 2026-09-28): Handle cases where start and end are Chinese characters or outside
+  // the ASCII range
   nfa.states_[NEW_DEFAULT_START_STATE].addTransition(start, end, NEW_DEFAULT_ACCEPT_STATE);
 
   return nfa;
@@ -375,7 +377,7 @@ void NfaBuilder::appendStatesWithOffset(Nfa& dst_nfa, const Nfa& src_nfa, size_t
   for (const auto& state : src_nfa.states_) {
     Nfa::State new_state = state;
     for (auto& transition : new_state.transitions_) {
-      transition.target += offset;
+      transition.target_ += offset;
     }
     for (auto& eid : new_state.epsilons_) {
       eid += offset;

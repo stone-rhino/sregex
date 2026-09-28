@@ -33,7 +33,7 @@ bool Nfa::isMatchImpl(const char* input, size_t length, bool partial) const {
   throw "Not implemented!";
 }
 
-std::string asciiLabelToken(char c) {
+std::string scalarLabelToken(unsigned char c) {
   if (c == ' ') {
     return "SP";
   }
@@ -43,18 +43,10 @@ std::string asciiLabelToken(char c) {
   }
 
   if (c >= 0x21 && c <= 0x7e) {
-    return std::format("{}", c);
+    return std::format("{}", static_cast<char>(c));
   }
 
   return std::format("0x{:02x}", c);
-}
-
-std::string scalarLabelToken(uint32_t unicode) {
-  if (unicode <= 0xff) {
-    return asciiLabelToken(unicode);
-  }
-
-  return std::format("U+{:04x}", unicode);
 }
 
 std::string Nfa::toDotImpl() const {
@@ -77,13 +69,13 @@ std::string Nfa::toDotImpl() const {
 
     // Add the transitions for this state
     for (const auto& transition : states_[i].transitions_) {
-      if (transition.range.start_ != transition.range.end_) {
-        dot.append(std::format("  {} -> {} [label=\"{}-{}\"];\n", i, transition.target,
-                               scalarLabelToken(transition.range.start_),
-                               scalarLabelToken(transition.range.end_)));
+      if (transition.start_ != transition.end_) {
+        dot.append(std::format("  {} -> {} [label=\"{}-{}\"];\n", i, transition.target_,
+                               scalarLabelToken(transition.start_),
+                               scalarLabelToken(transition.end_)));
       } else {
-        dot.append(std::format("  {} -> {} [label=\"{}\"];\n", i, transition.target,
-                               scalarLabelToken(transition.range.start_)));
+        dot.append(std::format("  {} -> {} [label=\"{}\"];\n", i, transition.target_,
+                               scalarLabelToken(transition.start_)));
       }
     }
 
