@@ -49,5 +49,8 @@ public:
   static Nfa withExactRepetition(const Nfa& base_nfa, size_t count);
   static std::expected<Nfa, std::string> withRangeRepetition(const Nfa& base_nfa, size_t min,
                                                              std::optional<size_t> max);
+
+private:
+  static void appendStatesWithOffset(Nfa& dst_nfa, const Nfa& src_nfa, size_t offset);
 };
 } // namespace Sregex::Automata

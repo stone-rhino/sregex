@@ -50,7 +50,11 @@ Nfa NfaBuilder::withPatterns(const std::span<const std::string>& patterns) {
     nfas.emplace_back(std::move(sub_nfa));
   }
 
-  return withAlternation(nfas);
+  if (nfas.size() == 1) {
+    return std::move(nfas[0]);
+  } else {
+    return withAlternation(nfas);
+  }
 }
 
 Nfa NfaBuilder::withHir(const Parser::Hir& hir) {
@@ -188,8 +192,9 @@ Nfa NfaBuilder::withConcat(const Nfa& first, const Nfa& second) {
   nfa.states_.reserve(first.states_.size() + second.states_.size());
   nfa.states_ = first.states_;
 
-  // Add all states from the second NFA to the new NFA
-  nfa.states_.insert(nfa.states_.end(), second.states_.begin(), second.states_.end());
+  // Add all states from the second NFA to the new NFA, adjusting the target state IDs for
+  // transitions
+  appendStatesWithOffset(nfa, second, first.states_.size());
 
   // Add an epsilon transition from the accept state of the first NFA to the start state of the
   // second NFA
@@ -221,13 +226,15 @@ Nfa NfaBuilder::withAlternation(const std::span<const Nfa>& nfas) {
     offset += sub_nfa.states_.size();
   }
 
-  // Add all states from each NFA to the new NFA
+  // Add all states from each NFA to the new NFA, adjusting the target state IDs for transitions
   std::vector<StateId> sub_accept_states;
   sub_accept_states.reserve(nfas.size());
+  offset = nfa.states_.size();
   for (const auto& sub_nfa : nfas) {
     size_t sub_accept = sub_nfa.accept_state_ + nfa.states_.size();
     sub_accept_states.push_back(sub_accept);
-    nfa.states_.insert(nfa.states_.end(), sub_nfa.states_.begin(), sub_nfa.states_.end());
+    appendStatesWithOffset(nfa, sub_nfa, offset);
+    offset += sub_nfa.states_.size();
   }
 
   // Create a new accept state that all NFAs will transition to via epsilon transitions
@@ -253,8 +260,8 @@ Nfa NfaBuilder::withKleeneStar(const Nfa& base_nfa) {
   nfa.states_.emplace_back();
   nfa.states_.front().addEpsilon(1 + base_nfa.start_state_);
 
-  // Add all states from the base_nfa to new NFA
-  nfa.states_.insert(nfa.states_.end(), base_nfa.states_.begin(), base_nfa.states_.end());
+  // Add all states from the base_nfa to new NFA, adjusting the target state IDs for transitions
+  appendStatesWithOffset(nfa, base_nfa, nfa.states_.size());
 
   // Create a new accept state that the base_nfa will transition to via an epsilon transition,
   // and add an epsilon transition from the new start state to this new accept state, and also
@@ -298,7 +305,7 @@ Nfa NfaBuilder::withQuestionMark(const Nfa& base_nfa) {
   nfa.states_.front().addEpsilon(base_nfa.start_state_ + 1); // +1 for the new start state
 
   // Add all states from the base_nfa to the new NFA
-  nfa.states_.insert(nfa.states_.end(), base_nfa.states_.begin(), base_nfa.states_.end());
+  appendStatesWithOffset(nfa, base_nfa, nfa.states_.size());
 
   // Create a new accept state that the base_nfa will transition to via an epsilon transition, and
   // add an epsilon transition from the new start state to this new accept state, allowing for
@@ -362,6 +369,19 @@ std::expected<Nfa, std::string> NfaBuilder::withRangeRepetition(const Nfa& base_
 
   const std::string max_str = max.has_value() ? std::to_string(max.value()) : "none";
   return std::unexpected(std::format("Invalid repetition range: min={}, max={}", min, max_str));
+}
+
+void NfaBuilder::appendStatesWithOffset(Nfa& dst_nfa, const Nfa& src_nfa, size_t offset) {
+  for (const auto& state : src_nfa.states_) {
+    Nfa::State new_state = state;
+    for (auto& transition : new_state.transitions_) {
+      transition.target += offset;
+    }
+    for (auto& eid : new_state.epsilons_) {
+      eid += offset;
+    }
+    dst_nfa.states_.emplace_back(std::move(new_state));
+  }
 }
 
 } // namespace Sregex::Automata
