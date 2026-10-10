@@ -30,6 +30,6 @@ public:
   Dfa(const std::vector<std::string>& patterns);
 
 protected:
-  bool isMatchImpl(const char* input, size_t length, bool partial) const;
+  bool isMatchImpl(const char* input, size_t length) const;
 };
 } // namespace Sregex::Automata

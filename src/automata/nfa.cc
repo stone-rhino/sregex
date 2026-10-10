@@ -20,17 +20,20 @@
  */
 #include "nfa.h"
 
+#include <algorithm>
 #include <format>
+#include <stack>
 
 #include "nfa_builder.h"
 
 namespace Sregex::Automata {
 Nfa::Nfa(const std::span<const std::string>& patterns) {
   *this = NfaBuilder::withPatterns(patterns);
+  buildEpsilonClosureCache();
 }
 
-bool Nfa::isMatchImpl(const char* input, size_t length, bool partial) const {
-  throw "Not implemented!";
+bool Nfa::isMatchImpl(const char* input, size_t length) const {
+  return dfs(start_state_, input, length);
 }
 
 std::string scalarLabelToken(unsigned char c) {
@@ -88,6 +91,73 @@ std::string Nfa::toDotImpl() const {
   dot.append("}\n");
 
   return dot;
+}
+
+std::vector<StateId> Nfa::epsilonClosure(StateId state) const {
+  std::vector<StateId> closure;
+  std::stack<StateId> stack;
+  std::vector<bool> visited(states_.size(), false);
+  visited[state] = true;
+
+  stack.push(state);
+  while (!stack.empty()) {
+    StateId current = stack.top();
+    stack.pop();
+    closure.push_back(current);
+    for (auto next : states_[current].epsilons_) {
+      if (!visited[next]) {
+        stack.push(next);
+        visited[next] = true;
+      }
+    }
+  }
+
+  // Sort and remove duplicates from the closure
+  std::sort(closure.begin(), closure.end());
+  closure.erase(std::unique(closure.begin(), closure.end()), closure.end());
+
+  return closure;
+}
+
+void Nfa::buildEpsilonClosureCache() {
+  epsilon_closure_cache_.resize(states_.size());
+  for (StateId i = 0; i < states_.size(); ++i) {
+    std::vector<StateId> closure = epsilonClosure(i);
+
+    // Remove states that have no outgoing transitions and are not the accept state
+    closure.erase(std::remove_if(closure.begin(), closure.end(),
+                                 [this](StateId s) {
+                                   return states_[s].transitions_.empty() && s != accept_state_;
+                                 }),
+                  closure.end());
+
+    epsilon_closure_cache_[i] = std::move(closure);
+  }
+}
+
+bool Nfa::dfs(StateId state, const char* input, size_t length) const {
+  if (state == accept_state_) {
+    return true;
+  }
+
+  for (size_t i = 0; i < length; ++i) {
+    const std::vector<StateId>& closure_cache = epsilon_closure_cache_[state];
+    for (StateId state : closure_cache) {
+      for (const auto& transition : states_[state].transitions_) {
+        if (transition.matches(input[i])) {
+          if (dfs(transition.target_, input + i + 1, length - i - 1)) {
+            return true;
+          }
+        }
+      }
+    }
+
+    if (start_state_ != state) {
+      break;
+    }
+  }
+
+  return false;
 }
 
 } // namespace Sregex::Automata

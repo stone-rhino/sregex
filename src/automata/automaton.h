@@ -36,22 +36,15 @@ public:
    *
    * @param input The input string to check
    * @param length The length of the input string
-   * @param partial If true, allows partial matches
    * @return True if the input matches the pattern, false otherwise
    *
    * @note This method is overloaded to accept std::string, std::string_view, and C-style strings
    */
-  bool isMatch(const std::string& input, bool partial = false) const {
-    return isMatch(input.data(), input.size(), partial);
-  }
-  bool isMatch(std::string_view input, bool partial = false) const {
-    return isMatch(input.data(), input.size(), partial);
-  }
-  bool isMatch(const char* input, bool partial = false) const {
-    return isMatch(input, std::strlen(input), partial);
-  }
-  bool isMatch(const char* input, size_t length, bool partial = false) const {
-    return derived().isMatchImpl(input, length, partial);
+  bool isMatch(const std::string& input) const { return isMatch(input.data(), input.size()); }
+  bool isMatch(std::string_view input) const { return isMatch(input.data(), input.size()); }
+  bool isMatch(const char* input) const { return isMatch(input, std::strlen(input)); }
+  bool isMatch(const char* input, size_t length) const {
+    return derived().isMatchImpl(input, length);
   }
 
   /**

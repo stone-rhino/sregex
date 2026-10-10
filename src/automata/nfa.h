@@ -20,7 +20,6 @@
  */
 #pragma once
 
-#include <optional>
 #include <span>
 #include <vector>
 
@@ -60,12 +59,23 @@ public:
   const std::string& err() const { return err_; }
 
 protected:
-  bool isMatchImpl(const char* input, size_t length, bool partial) const;
+  // Implementation of the isMatch interface
+  bool isMatchImpl(const char* input, size_t length) const;
+
+  // Implementation of the toDot interface
   std::string toDotImpl() const;
 
 private:
+  std::vector<StateId> epsilonClosure(StateId state) const;
+
+  void buildEpsilonClosureCache();
+
+  // Performs a depth-first search to check if the NFA accepts the input string starting from the
+  // given state and position
+  bool dfs(StateId state, const char* input, size_t length) const;
+
+private:
   struct State {
-    std::optional<Parser::AnchorKind> anchor_;
     std::vector<Transition> transitions_;
     std::vector<StateId> epsilons_;
     void addTransition(unsigned char c, StateId target) {
@@ -78,8 +88,11 @@ private:
     void addEpsilon(StateId target) { epsilons_.emplace_back(target); }
   };
 
+  using ClosureCache = std::vector<StateId>;
+
 private:
   std::vector<State> states_;
+  std::vector<ClosureCache> epsilon_closure_cache_;
   StateId start_state_;
   StateId accept_state_;
   std::string err_;

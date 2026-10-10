@@ -30,4 +30,20 @@ TEST(NfaTest, Constructor) {
   EXPECT_TRUE(nfa.ok());
   nfa.toDotSvg("1.svg");
 }
+
+TEST(NfaTest, isMatch) {
+  Nfa nfa(std::vector<std::string>{"(你*|好+|(hello)?|(hi){2,4})+世界"});
+  EXPECT_TRUE(nfa.isMatch("世界"));
+  EXPECT_TRUE(nfa.isMatch("你世界"));
+  EXPECT_TRUE(nfa.isMatch("好好世界"));
+  EXPECT_TRUE(nfa.isMatch("hello世界"));
+  EXPECT_TRUE(nfa.isMatch("hihihi世界"));
+  EXPECT_TRUE(nfa.isMatch("你好hellohihi世界"));
+  EXPECT_TRUE(nfa.isMatch("aaa你世界aaa"));
+  EXPECT_TRUE(nfa.isMatch("aaa好好世界aaa"));
+  EXPECT_TRUE(nfa.isMatch("aaahello世界aaa"));
+  EXPECT_TRUE(nfa.isMatch("aaahihihi世界aaa"));
+  EXPECT_TRUE(nfa.isMatch("aaa你好hellohihi世界aaa"));
+}
+
 } // namespace Sregex::Automata

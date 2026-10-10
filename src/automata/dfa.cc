@@ -21,7 +21,5 @@
 #include "dfa.h"
 
 namespace Sregex::Automata {
-bool Dfa::isMatchImpl(const char* input, size_t length, bool partial) const {
-  throw "Not implemented!";
-}
+bool Dfa::isMatchImpl(const char* input, size_t length) const { throw "Not implemented!"; }
 } // namespace Sregex::Automata

@@ -125,11 +125,8 @@ Nfa NfaBuilder::withHir(const Parser::Hir& hir) {
 
 Nfa NfaBuilder::withAnchor(Parser::AnchorKind anchor) {
   Nfa nfa;
-  nfa.states_.resize(2);
-  nfa.start_state_ = NEW_DEFAULT_START_STATE;
-  nfa.accept_state_ = NEW_DEFAULT_ACCEPT_STATE;
-  nfa.states_[NEW_DEFAULT_START_STATE].anchor_ = anchor;
-
+  // FIXME(zhouyu 2026-10-10): Implement support for anchors such as ^ and $ in the NFA.
+  nfa.err_ = "Not supported anchor";
   return nfa;
 }
 
