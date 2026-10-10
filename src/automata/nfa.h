@@ -37,6 +37,7 @@ class Nfa : public Automaton<Nfa> {
 
 public:
   Nfa() = default;
+  Nfa(const std::string& pattern);
   Nfa(const std::span<const std::string>& patterns);
   Nfa(const Nfa& other) = delete;
   Nfa& operator=(const Nfa& other) = delete;

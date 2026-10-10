@@ -32,7 +32,7 @@ TEST(NfaTest, Constructor) {
 }
 
 TEST(NfaTest, isMatch) {
-  Nfa nfa(std::vector<std::string>{"(你*|好+|(hello)?|(hi){2,4})+世界"});
+  Nfa nfa("(你*|好+|(hello)?|(hi){2,4})+世界");
   EXPECT_TRUE(nfa.isMatch("世界"));
   EXPECT_TRUE(nfa.isMatch("你世界"));
   EXPECT_TRUE(nfa.isMatch("好好世界"));

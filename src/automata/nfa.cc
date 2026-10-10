@@ -27,6 +27,11 @@
 #include "nfa_builder.h"
 
 namespace Sregex::Automata {
+Nfa::Nfa(const std::string& pattern) {
+  *this = NfaBuilder::withPattern(pattern);
+  buildEpsilonClosureCache();
+}
+
 Nfa::Nfa(const std::span<const std::string>& patterns) {
   *this = NfaBuilder::withPatterns(patterns);
   buildEpsilonClosureCache();
