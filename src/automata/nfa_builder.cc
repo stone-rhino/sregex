@@ -20,8 +20,11 @@
  */
 #include "nfa_builder.h"
 
+#include <codecvt>
 #include <format>
 #include <vector>
+
+#include <assert.h>
 
 namespace Sregex::Automata {
 constexpr StateId NEW_DEFAULT_START_STATE = 0;
@@ -156,16 +159,25 @@ Nfa NfaBuilder::withString(const std::string& str) {
   return nfa;
 }
 
-Nfa NfaBuilder::withRange(uint32_t start, uint32_t end) {
-  Nfa nfa;
-  nfa.states_.resize(2);
-  nfa.start_state_ = NEW_DEFAULT_START_STATE;
-  nfa.accept_state_ = NEW_DEFAULT_ACCEPT_STATE;
-  // FIXME(zhouyu 2026-09-28): Handle cases where start and end are Chinese characters or outside
-  // the ASCII range
-  nfa.states_[NEW_DEFAULT_START_STATE].addTransition(start, end, NEW_DEFAULT_ACCEPT_STATE);
+Nfa NfaBuilder::withRange(uint32_t start_unicode, uint32_t end_unicode) {
+  std::vector<Seq> ranges = utf8Ranges(start_unicode, end_unicode);
+  std::vector<Nfa> sub_nfas;
+  for (const auto& seq : ranges) {
+    Nfa sub_nfa;
+    sub_nfa.states_.resize(seq.size() + 1);
+    sub_nfa.start_state_ = NEW_DEFAULT_START_STATE;
+    sub_nfa.accept_state_ = static_cast<StateId>(seq.size());
+    for (size_t i = 0; i < seq.size(); ++i) {
+      sub_nfa.states_[i].addTransition(seq[i].first, seq[i].second, static_cast<StateId>(i + 1));
+    }
+    sub_nfas.push_back(std::move(sub_nfa));
+  }
 
-  return nfa;
+  if (sub_nfas.size() > 1) {
+    return withAlternation(sub_nfas);
+  } else {
+    return std::move(sub_nfas.front());
+  }
 }
 
 Nfa NfaBuilder::withConcat(const Nfa& first, const Nfa& second) {
@@ -383,6 +395,200 @@ void NfaBuilder::appendStatesWithOffset(Nfa& dst_nfa, const Nfa& src_nfa, size_t
       eid += offset;
     }
     dst_nfa.states_.emplace_back(std::move(new_state));
+  }
+}
+
+std::vector<NfaBuilder::Seq> NfaBuilder::utf8Ranges(uint32_t start_unicode, uint32_t end_unicode) {
+  std::vector<Seq> ranges;
+
+  static const std::pair<uint32_t, uint32_t> kUtf8Boundaries[] = {
+      {0x0000, 0x007F},    // 1 byte
+      {0x0080, 0x07FF},    // 2 bytes
+      {0x0800, 0xD7FF},    // 3 bytes (before surrogate area)
+      {0xE000, 0xFFFF},    // 3 bytes (after surrogate area)
+      {0x10000, 0x10FFFF}, // 4 bytes
+  };
+
+  static std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> conv;
+
+  for (auto [range_start, range_end] : kUtf8Boundaries) {
+    uint32_t start = std::max(start_unicode, range_start);
+    uint32_t end = std::min(end_unicode, range_end);
+    if (start <= end) {
+      auto start_utf8_bytes = conv.to_bytes(start);
+      auto end_utf8_bytes = conv.to_bytes(end);
+      splitByteRange({start_utf8_bytes.begin(), start_utf8_bytes.end()},
+                     {end_utf8_bytes.begin(), end_utf8_bytes.end()}, ranges);
+    }
+  }
+
+  return ranges;
+}
+
+void NfaBuilder::splitByteRange(const std::vector<unsigned char>& start,
+                                const std::vector<unsigned char>& end, std::vector<Seq>& ranges) {
+  const size_t byte_count = start.size();
+  assert(byte_count != 0);
+  assert(byte_count == end.size());
+  if (byte_count == 0 || byte_count != end.size()) {
+    return;
+  }
+
+  // Find the first byte where start and end differ
+  size_t diff_index = 0;
+  for (size_t i = 0; i < byte_count; ++i) {
+    if (start[i] == end[i]) {
+      ++diff_index;
+    } else {
+      break;
+    }
+  }
+
+  // Case 1: All bytes are the same, the range same as the start bytes
+  {
+    if (diff_index == byte_count) {
+      Seq seq;
+      seq.reserve(byte_count);
+      for (size_t i = 0; i < byte_count; ++i) {
+        seq.push_back({start[i], start[i]});
+      }
+      ranges.push_back(std::move(seq));
+      return;
+    }
+  }
+
+  // Case 2: Only the last byte differs, no need to split further
+  {
+    if (diff_index == byte_count - 1) {
+      Seq seq;
+      seq.reserve(byte_count);
+      for (size_t i = 0; i < byte_count; ++i) {
+        if (i == byte_count - 1) {
+          seq.push_back({start[i], end[i]});
+        } else {
+          seq.push_back({start[i], start[i]});
+        }
+      }
+      ranges.push_back(std::move(seq));
+      return;
+    }
+  }
+
+  // Case 3: More than the last byte differs, Need to split into left, middle, and right ranges
+  {
+    // Common prefix
+    Seq prefix;
+    prefix.reserve(diff_index);
+    for (size_t i = 0; i < diff_index; ++i) {
+      prefix.push_back({start[i], start[i]});
+    }
+
+    // Left range
+    {
+      bool left_full = true;
+      for (size_t i = diff_index + 1; i < byte_count; ++i) {
+        if (start[i] != 0x80) {
+          left_full = false;
+          break;
+        }
+      }
+
+      if (left_full) {
+        Seq seq = prefix;
+        seq.push_back({start[diff_index], start[diff_index]});
+        for (size_t i = diff_index + 1; i < byte_count; ++i) {
+          seq.push_back({0x80, 0xBF});
+        }
+        ranges.push_back(std::move(seq));
+      } else {
+        // Enumerate all possible positions to relax the byte range in the left sequence
+        for (size_t relax_pos = diff_index + 1; relax_pos < byte_count; ++relax_pos) {
+          Seq seq = prefix;
+          seq.push_back({start[diff_index], start[diff_index]});
+
+          // Before the relax pos, the bytes are fixed as in the start sequence
+          for (size_t before_relax = diff_index + 1; before_relax < relax_pos; ++before_relax) {
+            seq.push_back({start[before_relax], start[before_relax]});
+          }
+
+          // The relax pos byte range
+          if (relax_pos < byte_count - 1) {
+            if (start[relax_pos] >= 0xBF) {
+              continue;
+            }
+            seq.push_back({start[relax_pos] + 1, 0xBF});
+          } else {
+            seq.push_back({start[relax_pos], 0xBF});
+          }
+
+          // After the relax pos, the bytes are full range [0x80, 0xBF]
+          for (size_t after_relax = relax_pos + 1; after_relax < byte_count; ++after_relax) {
+            seq.push_back({0x80, 0xBF});
+          }
+          ranges.push_back(std::move(seq));
+        }
+      }
+    }
+
+    // Middle range
+    {
+      // The middle range is non-empty only if start[diff_index] + 1 <= end[diff_index] - 1
+      if (static_cast<int>(start[diff_index]) + 1 <= static_cast<int>(end[diff_index]) - 1) {
+        Seq seq = prefix;
+        seq.push_back({start[diff_index] + 1, end[diff_index] - 1});
+        for (size_t i = diff_index + 1; i < byte_count; ++i) {
+          seq.push_back({0x80, 0xBF});
+        }
+        ranges.push_back(std::move(seq));
+      }
+    }
+
+    // Right range
+    {
+      bool right_full = true;
+      for (size_t i = diff_index + 1; i < byte_count; ++i) {
+        if (end[i] != 0xBF) {
+          right_full = false;
+          break;
+        }
+      }
+
+      if (right_full) {
+        Seq seq = prefix;
+        seq.push_back({(end[diff_index]), end[diff_index]});
+        for (size_t i = diff_index + 1; i < byte_count; ++i) {
+          seq.push_back({0x80, 0xBF});
+        }
+        ranges.push_back(std::move(seq));
+      } else {
+        // Enumerate all possible positions to relax the byte range in the right sequence
+        for (size_t relax_pos = diff_index + 1; relax_pos < byte_count; ++relax_pos) {
+          Seq seq = prefix;
+          seq.push_back({end[diff_index], end[diff_index]});
+
+          // Before the relax pos, the bytes are fixed as in the end sequence
+          for (size_t before_relax = diff_index + 1; before_relax < relax_pos; ++before_relax) {
+            seq.push_back({end[before_relax], end[before_relax]});
+          }
+
+          // The relax pos byte range
+          if (relax_pos < byte_count - 1) {
+            if (end[relax_pos] <= 0x80) {
+              continue;
+            }
+            seq.push_back({0x80, end[relax_pos] - 1});
+          } else {
+            seq.push_back({0x80, end[relax_pos]});
+          }
+
+          // After the relax pos, the bytes are full range [0x80, 0xBF]
+          for (size_t k = relax_pos + 1; k < byte_count; ++k) {
+            seq.push_back({0x80, 0xBF});
+          }
+          ranges.push_back(std::move(seq));
+        }
+      }
+    }
   }
 }
 

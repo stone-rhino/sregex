@@ -51,6 +51,12 @@ public:
                                                              std::optional<size_t> max);
 
 private:
+  using Seq = std::vector<std::pair<unsigned char, unsigned char>>;
+
+private:
   static void appendStatesWithOffset(Nfa& dst_nfa, const Nfa& src_nfa, size_t offset);
+  static std::vector<Seq> utf8Ranges(uint32_t start_unicode, uint32_t end_unicode);
+  static void splitByteRange(const std::vector<unsigned char>& start,
+                             const std::vector<unsigned char>& end, std::vector<Seq>& ranges);
 };
 } // namespace Sregex::Automata

@@ -24,8 +24,10 @@
 
 namespace Sregex::Automata {
 TEST(NfaTest, Constructor) {
-  std::vector<std::string> patterns = {"(你*|好+|(hello)?|(hi){2,4})+世界", "ab12", "ab34"};
+  std::vector<std::string> patterns = {"(你*|好+|(hello)?|(hi){2,4})+世界", "ab12", "ab34",
+                                       "[一-龥]"};
   Nfa nfa(patterns);
   EXPECT_TRUE(nfa.ok());
+  nfa.toDotSvg("1.svg");
 }
 } // namespace Sregex::Automata

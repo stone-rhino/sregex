@@ -35,6 +35,8 @@
   } while (0)
 
 namespace Sregex::Parser {
+constexpr uint32_t kMaxUnicodeCodePoint = 0x10FFFF;
+
 Visitor::Visitor(Hir& hir) : hir_(hir) {}
 
 std::any Visitor::visitPcre(Antlr4Gen::PCREParser::PcreContext* ctx) {
@@ -493,6 +495,10 @@ Visitor::visitCharacter_class_atom(Antlr4Gen::PCREParser::Character_class_atomCo
       RETURN_ERROR("Invalid character range: start code point is greater than end code point");
     }
 
+    if (end_code_point > kMaxUnicodeCodePoint) {
+      RETURN_ERROR("Invalid character range: end code point exceeds Unicode limit");
+    }
+
     std::visit(
         [&](auto&& unicode_class) {
           using T = std::decay_t<decltype(unicode_class)>;
@@ -763,13 +769,14 @@ std::expected<UnicodeClassKind, std::string>
 Visitor::decodeEscapeCharacterType(const std::string& text) {
   // Table of character types
   const static std::unordered_map<std::string, UnicodeClassKind> char_type_map = {
-      {".", {{{0x00, 0x10FFFF}}}},
+      {".", {{{0x00, kMaxUnicodeCodePoint}}}},
       {"\\d", {{{0x30, 0x39}}}},
-      {"\\D", {{{0x00, 0x2F}, {0x3A, 0x10FFFF}}}},
+      {"\\D", {{{0x00, 0x2F}, {0x3A, kMaxUnicodeCodePoint}}}},
       {"\\s", {{{0x09, 0x0A}, {0x0C, 0x0D}, {0x20, 0x20}}}},
-      {"\\S", {{{0x00, 0x08}, {0x0B, 0x0B}, {0x0E, 0x1F}, {0x21, 0x10FFFF}}}},
+      {"\\S", {{{0x00, 0x08}, {0x0B, 0x0B}, {0x0E, 0x1F}, {0x21, kMaxUnicodeCodePoint}}}},
       {"\\w", {{{0x30, 0x39}, {0x41, 0x5A}, {0x5F, 0x5F}, {0x61, 0x7A}}}},
-      {"\\W", {{{0x00, 0x2F}, {0x3A, 0x40}, {0x5B, 0x5E}, {0x60, 0x60}, {0x7B, 0x10FFFF}}}},
+      {"\\W",
+       {{{0x00, 0x2F}, {0x3A, 0x40}, {0x5B, 0x5E}, {0x60, 0x60}, {0x7B, kMaxUnicodeCodePoint}}}},
   };
 
   auto iter = char_type_map.find(text);
@@ -848,7 +855,6 @@ Visitor::getPosixCharacterClass(const std::string& name, bool negate) {
 }
 
 UnicodeClassKind Visitor::makeNegated(const UnicodeClassKind& class_kind) {
-  constexpr uint32_t MAX = 0x10FFFF;
   UnicodeClassKind out;
   uint32_t next = 0;
   for (const auto& [start, end] : class_kind.ranges_) {
@@ -857,8 +863,8 @@ UnicodeClassKind Visitor::makeNegated(const UnicodeClassKind& class_kind) {
     }
     next = end + 1;
   }
-  if (next <= MAX) {
-    out.ranges_.emplace_back(next, MAX);
+  if (next <= kMaxUnicodeCodePoint) {
+    out.ranges_.emplace_back(next, kMaxUnicodeCodePoint);
   }
   return out;
 }
