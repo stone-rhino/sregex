@@ -29,14 +29,18 @@
 namespace Sregex::Automata {
 Nfa::Nfa(const std::string& pattern) {
   *this = NfaBuilder::withPattern(pattern);
-  buildEpsilonClosureCache();
-  longest_path_ = longestPath();
+  if (ok()) {
+    buildEpsilonClosureCache();
+    longest_path_ = longestPath();
+  }
 }
 
 Nfa::Nfa(const std::span<const std::string>& patterns) {
   *this = NfaBuilder::withPatterns(patterns);
-  buildEpsilonClosureCache();
-  longest_path_ = longestPath();
+  if (ok()) {
+    buildEpsilonClosureCache();
+    longest_path_ = longestPath();
+  }
 }
 
 bool Nfa::isMatchImpl(const char* input, size_t length) const {
