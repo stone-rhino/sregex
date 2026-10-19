@@ -48,6 +48,32 @@ public:
   }
 
   /**
+   * Checks if the input string partially matches the automaton's patterns
+   *
+   * @param input The input string to check. When performing partial matching, only the last few
+   * bytes of the input are considered based on the longestPath.
+   * @param length The length of the input string
+   * @return True if the input partially matches the pattern, false otherwise
+   *
+   * @note This method is overloaded to accept std::string, std::string_view, and C-style strings
+   */
+  bool isPartialMatch(const std::string& input) const {
+    return isPartialMatch(input.data(), input.size());
+  }
+  bool isPartialMatch(std::string_view input) const {
+    return isPartialMatch(input.data(), input.size());
+  }
+  bool isPartialMatch(const char* input) const { return isPartialMatch(input, std::strlen(input)); }
+  bool isPartialMatch(const char* input, size_t length) const {
+    return derived().isPartialMatchImpl(input, length);
+  }
+
+  /**
+   * Returns the length of the longest(acyclic) path in the automaton's state graph.
+   */
+  size_t longestPath() const { return derived().longestPathImpl(); }
+
+  /**
    * Converts the automaton to DOT format
    *
    * @return A string representing the automaton in DOT format

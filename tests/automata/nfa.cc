@@ -46,4 +46,32 @@ TEST(NfaTest, isMatch) {
   EXPECT_TRUE(nfa.isMatch("aaa你好hellohihi世界aaa"));
 }
 
+TEST(NfaTest, longestPath) {
+  Nfa nfa1("(a|1)+");
+  ASSERT_TRUE(nfa1.ok());
+  EXPECT_EQ(nfa1.longestPath(), 1);
+  Nfa nfa2("(ab|1234)+");
+  ASSERT_TRUE(nfa2.ok());
+  EXPECT_EQ(nfa2.longestPath(), 4);
+  Nfa nfa3("(你*|好+|(hello)?|(hi){2,4})+世界");
+  ASSERT_TRUE(nfa3.ok());
+  EXPECT_EQ(nfa3.longestPath(), 14);
+}
+
+TEST(NfaTest, isPartialMatch) {
+  Nfa nfa("(你*|好+|(hello)?|(hi){2,4})+世界");
+  ASSERT_TRUE(nfa.ok());
+  EXPECT_TRUE(nfa.isPartialMatch("世"));
+  EXPECT_TRUE(nfa.isPartialMatch("你世"));
+  EXPECT_TRUE(nfa.isPartialMatch("好好世"));
+  EXPECT_TRUE(nfa.isPartialMatch("hello世"));
+  EXPECT_TRUE(nfa.isPartialMatch("hihihi世"));
+  EXPECT_TRUE(nfa.isPartialMatch("你好hellohihi世"));
+  EXPECT_TRUE(nfa.isPartialMatch("aaa你世"));
+  EXPECT_TRUE(nfa.isPartialMatch("aaa好好世"));
+  EXPECT_TRUE(nfa.isPartialMatch("aaahello世"));
+  EXPECT_TRUE(nfa.isPartialMatch("aaahihihi世"));
+  EXPECT_TRUE(nfa.isPartialMatch("aaa你好hellohihi世"));
+}
+
 } // namespace Sregex::Automata

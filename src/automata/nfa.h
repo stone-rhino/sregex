@@ -63,17 +63,32 @@ protected:
   // Implementation of the isMatch interface
   bool isMatchImpl(const char* input, size_t length) const;
 
+  // Implementation of the isPartialMatch interface
+  bool isPartialMatchImpl(const char* input, size_t length) const;
+
+  // Implementation of the longestPath interface
+  size_t longestPathImpl() const;
+
   // Implementation of the toDot interface
   std::string toDotImpl() const;
 
 private:
+  // Computes the epsilon closure of a given state
   std::vector<StateId> epsilonClosure(StateId state) const;
 
+  // Builds the epsilon closure cache for all states
   void buildEpsilonClosureCache();
 
   // Performs a depth-first search to check if the NFA accepts the input string starting from the
   // given state and position
   bool dfs(StateId state, const char* input, size_t length) const;
+
+  // Performs a depth-first search to check if the NFA partially accepts the input string starting
+  // from the given state and position
+  bool dfsPartial(StateId state, const char* input, size_t length) const;
+
+  // Computes the length of the longest path in the NFA starting from the given state
+  int64_t longestPathFrom(StateId state, std::vector<bool>& visited) const;
 
 private:
   struct State {
@@ -100,5 +115,6 @@ private:
   StateId start_state_;
   StateId accept_state_;
   std::string err_;
+  size_t longest_path_;
 };
 } // namespace Sregex::Automata
