@@ -89,7 +89,10 @@ private:
     void addEpsilon(StateId target) { epsilons_.emplace_back(target); }
   };
 
-  using ClosureCache = std::vector<StateId>;
+  struct ClosureCache {
+    std::vector<StateId> closure_;
+    bool has_accept_state_ = false;
+  };
 
 private:
   std::vector<State> states_;

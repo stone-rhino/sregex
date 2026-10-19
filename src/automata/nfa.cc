@@ -136,17 +136,25 @@ void Nfa::buildEpsilonClosureCache() {
                                  }),
                   closure.end());
 
-    epsilon_closure_cache_[i] = std::move(closure);
+    bool has_accept_state = false;
+    for (auto s : closure) {
+      if (s == accept_state_) {
+        has_accept_state = true;
+        break;
+      }
+    }
+    epsilon_closure_cache_[i].has_accept_state_ = has_accept_state;
+    epsilon_closure_cache_[i].closure_ = std::move(closure);
   }
 }
 
 bool Nfa::dfs(StateId state, const char* input, size_t length) const {
-  if (state == accept_state_) {
+  if (epsilon_closure_cache_[state].has_accept_state_) {
     return true;
   }
 
+  const std::vector<StateId>& closure_cache = epsilon_closure_cache_[state].closure_;
   for (size_t i = 0; i < length; ++i) {
-    const std::vector<StateId>& closure_cache = epsilon_closure_cache_[state];
     for (StateId state : closure_cache) {
       for (const auto& transition : states_[state].transitions_) {
         if (transition.matches(input[i])) {
