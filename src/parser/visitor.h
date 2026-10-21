@@ -20,7 +20,9 @@
  */
 #pragma once
 
+#include <codecvt>
 #include <expected>
+#include <locale>
 #include <stack>
 #include <vector>
 
@@ -120,6 +122,9 @@ private:
   // Convert a UTF-8 encoded string to a UTF-32 encoded string
   static std::u32string utf8ToUtf32(const std::string& text);
 
+  // Convert a UTF-32 encoded string to a UTF-8 encoded string
+  static std::string utf32ToUtf8(const std::u32string& text);
+
   // Flatten the HIR tree by merging nested concatenations and alternations into a single level
   static void flatten(Hir* hir);
 
@@ -128,6 +133,9 @@ private:
 
   // Add a child HIR node to the given parent HIR node
   static void addHirNode(Hir* parent, std::unique_ptr<Hir>&& child);
+
+private:
+  static std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> str_conv_;
 
 private:
   Hir& hir_;

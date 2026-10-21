@@ -399,6 +399,30 @@ TEST(HirTest, RepetitionKindWithGreedy) {
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
     EXPECT_EQ(hir->dump(), "rep{0,-1 lit{a}}");
   }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("ab*");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<ConcatKind>());
+    const auto& concat = hir->kind.as<ConcatKind>();
+
+    const auto& literal = concat[0]->kind.as<LiteralKind>();
+    EXPECT_EQ(literal, "a");
+
+    const auto& rep = concat[1]->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 0);
+    EXPECT_EQ(rep.max_, std::nullopt);
+    EXPECT_TRUE(rep.greedy_);
+    EXPECT_FALSE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "b");
+    EXPECT_EQ(hir->dump(), "cat{lit{a} rep{0,-1 lit{b}}}");
+  }
 }
 
 TEST(HirTest, RepetitionKindWithLazy) {
@@ -495,6 +519,30 @@ TEST(HirTest, RepetitionKindWithLazy) {
     EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
     EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "a");
     EXPECT_EQ(hir->dump(), "rep{0,-1 lit{a}}");
+  }
+
+  {
+    auto result = Sregex::Parser::Hir::parse("ab*?");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<ConcatKind>());
+    const auto& concat = hir->kind.as<ConcatKind>();
+
+    const auto& literal = concat[0]->kind.as<LiteralKind>();
+    EXPECT_EQ(literal, "a");
+
+    const auto& rep = concat[1]->kind.as<RepetitionKind>();
+    EXPECT_EQ(rep.min_, 0);
+    EXPECT_EQ(rep.max_, std::nullopt);
+    EXPECT_FALSE(rep.greedy_);
+    EXPECT_FALSE(rep.possessive_);
+    EXPECT_TRUE(rep.sub_->kind.is<LiteralKind>());
+    EXPECT_EQ(rep.sub_->kind.as<LiteralKind>(), "b");
+    EXPECT_EQ(hir->dump(), "cat{lit{a} rep{0,-1 lit{b}}}");
   }
 }
 

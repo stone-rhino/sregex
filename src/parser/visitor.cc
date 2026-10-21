@@ -36,6 +36,7 @@
 
 namespace Sregex::Parser {
 constexpr uint32_t kMaxUnicodeCodePoint = 0x10FFFF;
+std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> Visitor::str_conv_;
 
 Visitor::Visitor(Hir& hir) : hir_(hir) {}
 
@@ -396,6 +397,27 @@ std::any Visitor::visitQuantifier(Antlr4Gen::PCREParser::QuantifierContext* ctx)
         using T = std::decay_t<decltype(parent)>;
         if constexpr (std::is_same_v<T, ConcatKind>) {
           if (!parent.empty()) {
+            if (parent.back()->kind.template is<LiteralKind>()) {
+              auto& literal = parent.back()->kind.template as<LiteralKind>();
+              std::u32string literal_u32 = utf8ToUtf32(literal);
+
+              // If consecutive literals were merged (e.g. "ab" in "ab*"),
+              // split out only the last atom so the quantifier binds correctly.
+              if (literal_u32.size() > 1) {
+                std::u32string prefix_u32 = literal_u32.substr(0, literal_u32.size() - 1);
+                std::u32string last_u32(1, literal_u32.back());
+
+                std::string prefix_utf8 = utf32ToUtf8(prefix_u32);
+                std::string last_utf8 = utf32ToUtf8(last_u32);
+
+                literal.assign(prefix_utf8);
+                rep.sub_ = std::make_unique<Hir>(
+                    Hir{LiteralKind(last_utf8), parent.back()->option_settings_});
+                parent.push_back(std::move(hir));
+                return;
+              }
+            }
+
             rep.sub_ = std::move(parent.back());
             parent.back() = std::move(hir);
           } else {
@@ -869,10 +891,9 @@ UnicodeClassKind Visitor::makeNegated(const UnicodeClassKind& class_kind) {
   return out;
 }
 
-std::u32string Visitor::utf8ToUtf32(const std::string& text) {
-  static std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> conv;
-  return conv.from_bytes(text);
-}
+std::u32string Visitor::utf8ToUtf32(const std::string& text) { return str_conv_.from_bytes(text); }
+
+std::string Visitor::utf32ToUtf8(const std::u32string& text) { return str_conv_.to_bytes(text); }
 
 void Visitor::flatten(Hir* hir) {
   std::visit(
