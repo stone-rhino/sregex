@@ -6,7 +6,10 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "BUILD_BENCHES": "OFF",
+        "BUILD_EXAMPLES": "OFF",
+        "BUILD_TESTS": "OFF"
       }
     },
     {
@@ -14,7 +17,10 @@
       "inherits": "vcpkg",
       "binaryDir": "${sourceDir}/build/debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_BENCHES": "ON",
+        "BUILD_EXAMPLES": "ON",
+        "BUILD_TESTS": "ON"
       }
     },
     {
@@ -22,7 +28,10 @@
       "inherits": "vcpkg",
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_BENCHES": "OFF",
+        "BUILD_EXAMPLES": "OFF",
+        "BUILD_TESTS": "ON"
       }
     },
     {
@@ -30,7 +39,21 @@
       "inherits": "vcpkg",
       "binaryDir": "${sourceDir}/build/release-with-debug-info",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "BUILD_BENCHES": "OFF",
+        "BUILD_EXAMPLES": "OFF",
+        "BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "benches",
+      "inherits": "vcpkg",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_BENCHES": "ON",
+        "BUILD_EXAMPLES": "OFF",
+        "BUILD_TESTS": "ON"
       }
     }
   ]

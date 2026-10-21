@@ -27,6 +27,15 @@
         "CXX": "/usr/local/bin/g++",
         "LD_LIBRARY_PATH": "/usr/local/lib64"
       }
+    },
+    {
+      "name": "my-benches",
+      "inherits": "benches",
+      "environment": {
+        "CC": "/usr/local/bin/gcc",
+        "CXX": "/usr/local/bin/g++",
+        "LD_LIBRARY_PATH": "/usr/local/lib64"
+      }
     }
   ]
 }

@@ -2,5 +2,14 @@
   "dependencies": [
     "antlr4",
     "gtest"
-  ]
+  ],
+  "features": {
+    "benches": {
+      "description": "Dependencies for benchmarking and development",
+      "dependencies": [
+        "benchmark",
+        "pcre2"
+      ]
+    }
+  }
 }

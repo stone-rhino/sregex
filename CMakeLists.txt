@@ -1,5 +1,14 @@
 cmake_minimum_required(VERSION 3.14)
 
+option(BUILD_BENCHES "Build benchmark programs" OFF)
+option(BUILD_EXAMPLES "Build example programs" OFF)
+option(BUILD_TESTS "Build test programs" OFF)
+
+# Append the "benches" feature to VCPKG_MANIFEST_FEATURES if building benchmarks
+if(BUILD_BENCHES)
+    list(APPEND VCPKG_MANIFEST_FEATURES "benches")
+endif()
+
 project(sregex
     VERSION 1.0.0
     LANGUAGES CXX
@@ -8,26 +17,21 @@ project(sregex
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Options
-option(SREGEX_BUILD_BENCHES "Build benchmark programs" ON)
-option(SREGEX_BUILD_EXAMPLES "Build example programs" ON)
-option(SREGEX_BUILD_TESTS "Build test programs" ON)
-
 # sregex library
 add_subdirectory(src)
 
 # Benchmarks
-if(SREGEX_BUILD_BENCHES)
+if(BUILD_BENCHES)
     add_subdirectory(benches)
 endif()
 
 # Examples
-if(SREGEX_BUILD_EXAMPLES)
+if(BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
 # Tests
-if(SREGEX_BUILD_TESTS)
+if(BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
