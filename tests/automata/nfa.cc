@@ -82,6 +82,15 @@ TEST(NfaTest, isMatchBacic) {
     EXPECT_TRUE(nfa.isMatch("0"));
     EXPECT_FALSE(nfa.isMatch("abc"));
   }
+
+  // Dot character class
+  {
+    Nfa nfa("[.]+");
+    ASSERT_TRUE(nfa.ok());
+    EXPECT_TRUE(nfa.isMatch("..."));
+    EXPECT_TRUE(nfa.isMatch("."));
+    EXPECT_FALSE(nfa.isMatch("abc"));
+  }
 }
 
 TEST(NfaTest, isMatchWithQuantifiers) {

@@ -587,23 +587,37 @@ Visitor::visitCharacter_class_atom(Antlr4Gen::PCREParser::Character_class_atomCo
   // e.g., \d \w \s
   else if (ctx->character_type()) {
     auto char_type_name = ctx->character_type()->getText();
-    auto char_type_result = decodeEscapeCharacterType(char_type_name);
-    if (!char_type_result) {
-      RETURN_ERROR(char_type_result.error());
-    }
-    auto char_type = char_type_result.value();
-    std::visit(
-        [&](auto&& unicode_class) {
-          using T = std::decay_t<decltype(unicode_class)>;
-          if constexpr (std::is_same_v<T, UnicodeClassKind>) {
-            for (const auto& range : char_type.ranges_) {
-              unicode_class.ranges_.emplace_back(range);
+    if (char_type_name != ".") {
+      auto char_type_result = decodeEscapeCharacterType(char_type_name);
+      if (!char_type_result) {
+        RETURN_ERROR(char_type_result.error());
+      }
+      auto char_type = char_type_result.value();
+      std::visit(
+          [&](auto&& unicode_class) {
+            using T = std::decay_t<decltype(unicode_class)>;
+            if constexpr (std::is_same_v<T, UnicodeClassKind>) {
+              for (const auto& range : char_type.ranges_) {
+                unicode_class.ranges_.emplace_back(range);
+              }
+            } else {
+              assert(false);
             }
-          } else {
-            assert(false);
-          }
-        },
-        stack_.top()->kind);
+          },
+          stack_.top()->kind);
+    } else {
+      UnicodeClassKind::Range range('.', '.');
+      std::visit(
+          [&](auto&& unicode_class) {
+            using T = std::decay_t<decltype(unicode_class)>;
+            if constexpr (std::is_same_v<T, UnicodeClassKind>) {
+              unicode_class.ranges_.emplace_back(range);
+            } else {
+              assert(false);
+            }
+          },
+          stack_.top()->kind);
+    }
   }
 
   // Handle any other characters
