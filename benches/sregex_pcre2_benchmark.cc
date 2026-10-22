@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -96,6 +97,18 @@ struct PreparedScenario {
   Pcre2Resources pcre2_jit_;
 };
 
+struct PreparedMultiScenario {
+  std::string name_;
+  ScenarioMode mode_ = ScenarioMode::FullMatch;
+  std::vector<std::string> patterns_;
+  std::vector<std::string> inputs_;
+  Sregex::Automata::Nfa nfa_;
+  Pcre2Resources pcre2_;
+  Pcre2Resources pcre2_jit_;
+  std::vector<Pcre2Resources> pcre2_per_pattern_;
+  std::vector<Pcre2Resources> pcre2_jit_per_pattern_;
+};
+
 Pcre2Resources buildPcre2(const std::string& pattern, bool enable_jit) {
   int error_code = 0;
   PCRE2_SIZE error_offset = 0;
@@ -146,7 +159,7 @@ Pcre2Resources buildPcre2(const std::string& pattern, bool enable_jit) {
   return resources;
 }
 
-const std::vector<PreparedScenario>& preparedScenarios() {
+const std::vector<BenchmarkScenario>& benchmarkScenarios() {
   static const std::vector<BenchmarkScenario> scenarios = {
       {"FullMatch_LiteralLongPayload", "sregex-abcdefghijklmnopqrstuvwxyz0123456789",
        []() {
@@ -244,10 +257,30 @@ const std::vector<PreparedScenario>& preparedScenarios() {
       },
   };
 
+  return scenarios;
+}
+
+std::string buildAlternationPattern(const std::vector<std::string>& patterns) {
+  std::string alternation;
+  for (size_t i = 0; i < patterns.size(); ++i) {
+    if (i > 0) {
+      alternation += "|";
+    }
+    alternation += "(?:";
+    alternation += patterns[i];
+    alternation += ")";
+  }
+  return alternation;
+}
+
+const std::vector<PreparedScenario>& preparedScenarios() {
+  const auto& scenarios = benchmarkScenarios();
+
   static const std::vector<PreparedScenario> kPrepared = []() {
     std::vector<PreparedScenario> prepared;
-    prepared.reserve(scenarios.size());
-    for (const auto& scenario : scenarios) {
+    const auto& all_scenarios = benchmarkScenarios();
+    prepared.reserve(all_scenarios.size());
+    for (const auto& scenario : all_scenarios) {
       // Prepare the scenario for benchmarking
       PreparedScenario prepared_scenario;
       prepared_scenario.scenario_ = &scenario;
@@ -316,6 +349,132 @@ const std::vector<PreparedScenario>& preparedScenarios() {
 
       prepared.push_back(std::move(prepared_scenario));
     }
+    return prepared;
+  }();
+
+  return kPrepared;
+}
+
+const std::vector<PreparedMultiScenario>& preparedMultiScenarios() {
+  static const std::vector<PreparedMultiScenario> kPrepared = []() {
+    std::vector<std::string> full_patterns;
+    std::vector<std::string> full_inputs;
+    std::vector<std::string> partial_patterns;
+    std::vector<std::string> partial_inputs;
+
+    for (const auto& scenario : benchmarkScenarios()) {
+      if (scenario.mode_ == ScenarioMode::FullMatch) {
+        full_patterns.push_back(scenario.pattern_);
+        full_inputs.push_back(scenario.input_);
+      } else {
+        partial_patterns.push_back(scenario.pattern_);
+        partial_inputs.push_back(scenario.input_);
+      }
+    }
+
+    std::vector<PreparedMultiScenario> prepared;
+
+    if (!full_patterns.empty()) {
+      PreparedMultiScenario full_multi;
+      full_multi.name_ = "MultiPattern_FullMatch";
+      full_multi.mode_ = ScenarioMode::FullMatch;
+      full_multi.patterns_ = full_patterns;
+      full_multi.inputs_ = full_inputs;
+      full_multi.nfa_ = Sregex::Automata::Nfa(std::span<const std::string>(full_patterns));
+      if (!full_multi.nfa_.ok()) {
+        throw std::runtime_error("NFA multi-pattern build failed: " + full_multi.nfa_.err());
+      }
+
+      const std::string full_alternation = buildAlternationPattern(full_patterns);
+      full_multi.pcre2_ = buildPcre2(full_alternation, false);
+      full_multi.pcre2_jit_ = buildPcre2(full_alternation, true);
+      full_multi.pcre2_per_pattern_.reserve(full_patterns.size());
+      full_multi.pcre2_jit_per_pattern_.reserve(full_patterns.size());
+      for (const auto& pattern : full_patterns) {
+        full_multi.pcre2_per_pattern_.push_back(buildPcre2(pattern, false));
+        full_multi.pcre2_jit_per_pattern_.push_back(buildPcre2(pattern, true));
+      }
+
+      for (const auto& input : full_multi.inputs_) {
+        if (!full_multi.nfa_.isMatch(input)) {
+          throw std::runtime_error("NFA multi-pattern full-match verification failed");
+        }
+
+        const int match_result =
+            pcre2_match_8(full_multi.pcre2_.compiled_, reinterpret_cast<PCRE2_SPTR8>(input.c_str()),
+                          input.size(), 0, 0, full_multi.pcre2_.match_data_, nullptr);
+        if (match_result <= 0) {
+          throw std::runtime_error("PCRE2 multi-pattern full-match verification failed");
+        }
+
+        if (full_multi.pcre2_jit_.jit_ready_) {
+          const int jit_match_result = pcre2_match_8(
+              full_multi.pcre2_jit_.compiled_, reinterpret_cast<PCRE2_SPTR8>(input.c_str()),
+              input.size(), 0, 0, full_multi.pcre2_jit_.match_data_,
+              full_multi.pcre2_jit_.match_context_);
+          if (jit_match_result <= 0) {
+            throw std::runtime_error("PCRE2 JIT multi-pattern full-match verification failed");
+          }
+        }
+      }
+
+      prepared.push_back(std::move(full_multi));
+    }
+
+    if (!partial_patterns.empty()) {
+      PreparedMultiScenario partial_multi;
+      partial_multi.name_ = "MultiPattern_PartialMatch";
+      partial_multi.mode_ = ScenarioMode::PartialMatch;
+      partial_multi.patterns_ = partial_patterns;
+      partial_multi.inputs_ = partial_inputs;
+      partial_multi.nfa_ = Sregex::Automata::Nfa(std::span<const std::string>(partial_patterns));
+      if (!partial_multi.nfa_.ok()) {
+        throw std::runtime_error("NFA multi-pattern partial build failed: " +
+                                 partial_multi.nfa_.err());
+      }
+
+      const std::string partial_alternation = buildAlternationPattern(partial_patterns);
+      partial_multi.pcre2_ = buildPcre2(partial_alternation, false);
+      partial_multi.pcre2_jit_ = buildPcre2(partial_alternation, true);
+      partial_multi.pcre2_per_pattern_.reserve(partial_patterns.size());
+      partial_multi.pcre2_jit_per_pattern_.reserve(partial_patterns.size());
+      for (const auto& pattern : partial_patterns) {
+        partial_multi.pcre2_per_pattern_.push_back(buildPcre2(pattern, false));
+        partial_multi.pcre2_jit_per_pattern_.push_back(buildPcre2(pattern, true));
+      }
+
+      const uint32_t partial_flags = PCRE2_PARTIAL_SOFT;
+      for (const auto& input : partial_multi.inputs_) {
+        if (!partial_multi.nfa_.isPartialMatch(input)) {
+          throw std::runtime_error("NFA multi-pattern partial verification failed");
+        }
+
+        const size_t match_length = std::min(partial_multi.nfa_.longestPath(), input.size());
+        const char* match_start = input.c_str() + (input.size() - match_length);
+
+        const int partial_result = pcre2_match_8(
+            partial_multi.pcre2_.compiled_, reinterpret_cast<PCRE2_SPTR8>(match_start),
+            match_length, 0, partial_flags, partial_multi.pcre2_.match_data_, nullptr);
+        if (partial_result < 0 && partial_result != PCRE2_ERROR_NOMATCH &&
+            partial_result != PCRE2_ERROR_PARTIAL) {
+          throw std::runtime_error("PCRE2 multi-pattern partial verification failed");
+        }
+
+        if (partial_multi.pcre2_jit_.jit_ready_) {
+          const int jit_partial_result = pcre2_match_8(
+              partial_multi.pcre2_jit_.compiled_, reinterpret_cast<PCRE2_SPTR8>(match_start),
+              match_length, 0, partial_flags, partial_multi.pcre2_jit_.match_data_,
+              partial_multi.pcre2_jit_.match_context_);
+          if (jit_partial_result < 0 && jit_partial_result != PCRE2_ERROR_NOMATCH &&
+              jit_partial_result != PCRE2_ERROR_PARTIAL) {
+            throw std::runtime_error("PCRE2 JIT multi-pattern partial verification failed");
+          }
+        }
+      }
+
+      prepared.push_back(std::move(partial_multi));
+    }
+
     return prepared;
   }();
 
@@ -397,6 +556,148 @@ static void BM_PCRE2_JIT_PartialScenario(benchmark::State& state,
   }
 }
 
+static void BM_Sregex_Nfa_MultiScenario(benchmark::State& state,
+                                        const PreparedMultiScenario& prepared) {
+  size_t input_index = 0;
+  for (auto _ : state) {
+    const auto& input = prepared.inputs_[input_index % prepared.inputs_.size()];
+    const bool matched = (prepared.mode_ == ScenarioMode::FullMatch)
+                             ? prepared.nfa_.isMatch(input.c_str(), input.size())
+                             : prepared.nfa_.isPartialMatch(input.c_str(), input.size());
+    benchmark::DoNotOptimize(static_cast<int>(matched));
+    ++input_index;
+  }
+}
+
+static void BM_PCRE2_MultiScenario(benchmark::State& state, const PreparedMultiScenario& prepared) {
+  size_t input_index = 0;
+  for (auto _ : state) {
+    const auto& input = prepared.inputs_[input_index % prepared.inputs_.size()];
+    const uint32_t partial_flags =
+        (prepared.mode_ == ScenarioMode::PartialMatch) ? PCRE2_PARTIAL_SOFT : 0;
+    size_t match_length = input.size();
+    const char* match_start = input.c_str();
+
+    if (prepared.mode_ == ScenarioMode::PartialMatch) {
+      match_length = std::min(prepared.nfa_.longestPath(), input.size());
+      match_start = input.c_str() + (input.size() - match_length);
+    }
+
+    int match_result =
+        pcre2_match_8(prepared.pcre2_.compiled_, reinterpret_cast<PCRE2_SPTR8>(match_start),
+                      match_length, 0, partial_flags, prepared.pcre2_.match_data_, nullptr);
+    benchmark::DoNotOptimize(match_result);
+    ++input_index;
+  }
+}
+
+static void BM_PCRE2_JIT_MultiScenario(benchmark::State& state,
+                                       const PreparedMultiScenario& prepared) {
+  if (!prepared.pcre2_jit_.jit_ready_) {
+    state.SkipWithError(prepared.pcre2_jit_.jit_error_.c_str());
+    return;
+  }
+
+  size_t input_index = 0;
+  for (auto _ : state) {
+    const auto& input = prepared.inputs_[input_index % prepared.inputs_.size()];
+    const uint32_t partial_flags =
+        (prepared.mode_ == ScenarioMode::PartialMatch) ? PCRE2_PARTIAL_SOFT : 0;
+    size_t match_length = input.size();
+    const char* match_start = input.c_str();
+
+    if (prepared.mode_ == ScenarioMode::PartialMatch) {
+      match_length = std::min(prepared.nfa_.longestPath(), input.size());
+      match_start = input.c_str() + (input.size() - match_length);
+    }
+
+    int match_result = pcre2_match_8(
+        prepared.pcre2_jit_.compiled_, reinterpret_cast<PCRE2_SPTR8>(match_start), match_length, 0,
+        partial_flags, prepared.pcre2_jit_.match_data_, prepared.pcre2_jit_.match_context_);
+    benchmark::DoNotOptimize(match_result);
+    ++input_index;
+  }
+}
+
+static void BM_PCRE2_MultiScenario_PerPatternLoop(benchmark::State& state,
+                                                  const PreparedMultiScenario& prepared) {
+  size_t input_index = 0;
+  for (auto _ : state) {
+    const auto& input = prepared.inputs_[input_index % prepared.inputs_.size()];
+    const uint32_t partial_flags =
+        (prepared.mode_ == ScenarioMode::PartialMatch) ? PCRE2_PARTIAL_SOFT : 0;
+    size_t match_length = input.size();
+    const char* match_start = input.c_str();
+
+    if (prepared.mode_ == ScenarioMode::PartialMatch) {
+      match_length = std::min(prepared.nfa_.longestPath(), input.size());
+      match_start = input.c_str() + (input.size() - match_length);
+    }
+
+    int final_result = PCRE2_ERROR_NOMATCH;
+    for (auto& per_pattern : prepared.pcre2_per_pattern_) {
+      const int match_result =
+          pcre2_match_8(per_pattern.compiled_, reinterpret_cast<PCRE2_SPTR8>(match_start),
+                        match_length, 0, partial_flags, per_pattern.match_data_, nullptr);
+      final_result = match_result;
+      if (prepared.mode_ == ScenarioMode::FullMatch) {
+        if (match_result > 0) {
+          break;
+        }
+      } else {
+        if (match_result == PCRE2_ERROR_PARTIAL || match_result > 0) {
+          break;
+        }
+      }
+    }
+
+    benchmark::DoNotOptimize(final_result);
+    ++input_index;
+  }
+}
+
+static void BM_PCRE2_JIT_MultiScenario_PerPatternLoop(benchmark::State& state,
+                                                      const PreparedMultiScenario& prepared) {
+  size_t input_index = 0;
+  for (auto _ : state) {
+    const auto& input = prepared.inputs_[input_index % prepared.inputs_.size()];
+    const uint32_t partial_flags =
+        (prepared.mode_ == ScenarioMode::PartialMatch) ? PCRE2_PARTIAL_SOFT : 0;
+    size_t match_length = input.size();
+    const char* match_start = input.c_str();
+
+    if (prepared.mode_ == ScenarioMode::PartialMatch) {
+      match_length = std::min(prepared.nfa_.longestPath(), input.size());
+      match_start = input.c_str() + (input.size() - match_length);
+    }
+
+    int final_result = PCRE2_ERROR_NOMATCH;
+    for (size_t i = 0; i < prepared.pcre2_jit_per_pattern_.size(); ++i) {
+      auto& per_pattern_jit = prepared.pcre2_jit_per_pattern_[i];
+      if (!per_pattern_jit.jit_ready_) {
+        continue;
+      }
+
+      const int match_result = pcre2_match_8(
+          per_pattern_jit.compiled_, reinterpret_cast<PCRE2_SPTR8>(match_start), match_length, 0,
+          partial_flags, per_pattern_jit.match_data_, per_pattern_jit.match_context_);
+      final_result = match_result;
+      if (prepared.mode_ == ScenarioMode::FullMatch) {
+        if (match_result > 0) {
+          break;
+        }
+      } else {
+        if (match_result == PCRE2_ERROR_PARTIAL || match_result > 0) {
+          break;
+        }
+      }
+    }
+
+    benchmark::DoNotOptimize(final_result);
+    ++input_index;
+  }
+}
+
 // BENCHMARK_CAPTURE(BM_Sregex_Nfa_Scenario, literal, preparedScenarios()[0]);
 // BENCHMARK_CAPTURE(BM_PCRE2_Scenario, literal, preparedScenarios()[0]);
 // BENCHMARK_CAPTURE(BM_PCRE2_JIT_Scenario, literal, preparedScenarios()[0]);
@@ -427,8 +728,14 @@ public:
         continue;
       }
       ++line_count_;
-      if (line_count_ % 3 == 0) {
-        std::cout << "-----------------------" << std::endl;
+      if (line_count_ <= 27) {
+        if (line_count_ % 3 == 0) {
+          std::cout << "-----------------------" << std::endl;
+        }
+      } else {
+        if ((line_count_ - 27) % 5 == 0) {
+          std::cout << "-----------------------" << std::endl;
+        }
       }
     }
   }
@@ -451,12 +758,25 @@ int main(int argc, char** argv) {
       continue;
     }
 
-    benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/Sregex_NFA_PARTIAL").c_str(),
+    benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/Sregex_NFA").c_str(),
                                  BM_Sregex_Nfa_PartialScenario, std::cref(prepared));
-    benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/PCRE2_PARTIAL").c_str(),
+    benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/PCRE2").c_str(),
                                  BM_PCRE2_PartialScenario, std::cref(prepared));
-    benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/PCRE2_JIT_PARTIAL").c_str(),
+    benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/PCRE2_JIT").c_str(),
                                  BM_PCRE2_JIT_PartialScenario, std::cref(prepared));
+  }
+
+  for (const auto& prepared : preparedMultiScenarios()) {
+    benchmark::RegisterBenchmark((prepared.name_ + "/Sregex_NFA").c_str(),
+                                 BM_Sregex_Nfa_MultiScenario, std::cref(prepared));
+    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_ALTERNATION").c_str(),
+                                 BM_PCRE2_MultiScenario, std::cref(prepared));
+    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_PER_PATTERN").c_str(),
+                                 BM_PCRE2_MultiScenario_PerPatternLoop, std::cref(prepared));
+    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_JIT_ALTERNATION").c_str(),
+                                 BM_PCRE2_JIT_MultiScenario, std::cref(prepared));
+    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_JIT_PER_PATTERN").c_str(),
+                                 BM_PCRE2_JIT_MultiScenario_PerPatternLoop, std::cref(prepared));
   }
 
   GroupedConsoleReporter reporter;
