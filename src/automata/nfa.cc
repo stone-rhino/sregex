@@ -48,7 +48,16 @@ bool Nfa::isMatchImpl(const char* input, size_t length) const {
 bool Nfa::isPartialMatchImpl(const char* input, size_t length) const {
   size_t match_length = std::min(longest_path_, length);
   const char* match_start = input + (length - match_length);
-  return dfsPartial(start_state_, match_start, match_length);
+
+  const size_t memo_width = length + 1;
+  std::vector<int8_t> memo(states_.size() * memo_width, -1);
+  for (size_t offset = 0; offset < length; ++offset) {
+    if (dfsPartial(start_state_, input + offset, length - offset, memo, memo_width)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 std::string scalarLabelToken(unsigned char c) {
@@ -183,32 +192,36 @@ bool Nfa::dfs(StateId state, const char* input, size_t length) const {
   return false;
 }
 
-bool Nfa::dfsPartial(StateId state, const char* input, size_t length) const {
+bool Nfa::dfsPartial(StateId state, const char* input, size_t length, std::vector<int8_t>& memo,
+                     size_t memo_width) const {
+  const size_t memo_index = state * memo_width + length;
+  if (memo[memo_index] != -1) {
+    return memo[memo_index] == 1;
+  }
+
   if (epsilon_closure_cache_[state].has_accept_state_) {
+    memo[memo_index] = 0;
     return false;
   }
 
   if (length == 0) {
+    memo[memo_index] = 1;
     return true;
   }
 
   const std::vector<StateId>& closure_cache = epsilon_closure_cache_[state].closure_;
-  for (size_t i = 0; i < length; ++i) {
-    for (StateId state : closure_cache) {
-      for (const auto& transition : states_[state].transitions_) {
-        if (transition.matches(input[i])) {
-          if (dfsPartial(transition.target_, input + i + 1, length - i - 1)) {
-            return true;
-          }
+  for (StateId closure_state : closure_cache) {
+    for (const auto& transition : states_[closure_state].transitions_) {
+      if (transition.matches(input[0])) {
+        if (dfsPartial(transition.target_, input + 1, length - 1, memo, memo_width)) {
+          memo[memo_index] = 1;
+          return true;
         }
       }
     }
-
-    if (start_state_ != state) {
-      break;
-    }
   }
 
+  memo[memo_index] = 0;
   return false;
 }
 } // namespace Sregex::Automata

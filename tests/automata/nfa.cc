@@ -208,7 +208,11 @@ TEST(NfaTest, isPartialMatch) {
     EXPECT_TRUE(nfa.isPartialMatch("aa"));
     EXPECT_TRUE(nfa.isPartialMatch("aaa"));
     EXPECT_TRUE(nfa.isPartialMatch("aaaa"));
-    EXPECT_TRUE(nfa.isPartialMatch("aaaaa"));
+    EXPECT_TRUE(nfa.isPartialMatch("aaaaaa"));
+
+    const std::string padded = std::string(64, 'a') + "aaa";
+    EXPECT_TRUE(nfa.isPartialMatch(padded));
+
     EXPECT_FALSE(nfa.isPartialMatch("aaaab"));
     EXPECT_FALSE(nfa.isMatch("a"));
     EXPECT_FALSE(nfa.isMatch("aa"));
@@ -222,6 +226,10 @@ TEST(NfaTest, isPartialMatch) {
     EXPECT_TRUE(nfa.isPartialMatch("ca"));
     EXPECT_TRUE(nfa.isPartialMatch("do"));
     EXPECT_TRUE(nfa.isPartialMatch("ele"));
+
+    const std::string padded = std::string(64, 'e') + "ele";
+    EXPECT_TRUE(nfa.isPartialMatch(padded));
+
     EXPECT_FALSE(nfa.isMatch("ca"));
     EXPECT_TRUE(nfa.isMatch("cat"));
     EXPECT_TRUE(nfa.isMatch("dogs"));

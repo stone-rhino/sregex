@@ -20,6 +20,7 @@
  */
 #pragma once
 
+#include <cstdint>
 #include <span>
 #include <vector>
 
@@ -85,7 +86,8 @@ private:
 
   // Performs a depth-first search to check if the NFA partially accepts the input string starting
   // from the given state and position
-  bool dfsPartial(StateId state, const char* input, size_t length) const;
+  bool dfsPartial(StateId state, const char* input, size_t length,
+                  std::vector<int8_t>& memo, size_t memo_width) const;
 
   // Computes the length of the longest path in the NFA starting from the given state
   int64_t longestPathFrom(StateId state, std::vector<bool>& visited) const;
