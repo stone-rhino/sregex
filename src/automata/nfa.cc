@@ -51,8 +51,8 @@ bool Nfa::isPartialMatchImpl(const char* input, size_t length) const {
 
   const size_t memo_width = length + 1;
   std::vector<int8_t> memo(states_.size() * memo_width, -1);
-  for (size_t offset = 0; offset < length; ++offset) {
-    if (dfsPartial(start_state_, input + offset, length - offset, memo, memo_width)) {
+  for (size_t offset = 0; offset < match_length; ++offset) {
+    if (dfsPartial(start_state_, match_start + offset, match_length - offset, memo, memo_width)) {
       return true;
     }
   }
