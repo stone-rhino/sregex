@@ -31,7 +31,6 @@ Nfa::Nfa(const std::string& pattern) {
   *this = NfaBuilder::withPattern(pattern);
   if (ok()) {
     buildEpsilonClosureCache();
-    longest_path_ = longestPath();
   }
 }
 
@@ -39,7 +38,6 @@ Nfa::Nfa(const std::span<const std::string>& patterns) {
   *this = NfaBuilder::withPatterns(patterns);
   if (ok()) {
     buildEpsilonClosureCache();
-    longest_path_ = longestPath();
   }
 }
 
@@ -51,12 +49,6 @@ bool Nfa::isPartialMatchImpl(const char* input, size_t length) const {
   size_t match_length = std::min(longest_path_, length);
   const char* match_start = input + (length - match_length);
   return dfsPartial(start_state_, match_start, match_length);
-}
-
-size_t Nfa::longestPathImpl() const {
-  std::vector<bool> visited(states_.size(), false);
-  const int64_t longest_path = longestPathFrom(start_state_, visited);
-  return longest_path < 0 ? 0 : static_cast<size_t>(longest_path);
 }
 
 std::string scalarLabelToken(unsigned char c) {
@@ -219,36 +211,4 @@ bool Nfa::dfsPartial(StateId state, const char* input, size_t length) const {
 
   return false;
 }
-
-int64_t Nfa::longestPathFrom(StateId state, std::vector<bool>& visited) const {
-  if (state == accept_state_) {
-    return 0;
-  }
-
-  if (visited[state]) {
-    return -1;
-  }
-
-  visited[state] = true;
-
-  int64_t max_length = -1;
-
-  for (StateId next : states_[state].epsilons_) {
-    const int64_t sub_length = longestPathFrom(next, visited);
-    if (sub_length >= 0) {
-      max_length = std::max(max_length, sub_length);
-    }
-  }
-
-  for (const auto& transition : states_[state].transitions_) {
-    const int64_t sub_length = longestPathFrom(transition.target_, visited);
-    if (sub_length >= 0) {
-      max_length = std::max(max_length, sub_length + 1);
-    }
-  }
-
-  visited[state] = false;
-  return max_length;
-}
-
 } // namespace Sregex::Automata

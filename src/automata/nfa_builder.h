@@ -58,5 +58,7 @@ private:
   static std::vector<Seq> utf8Ranges(uint32_t start_unicode, uint32_t end_unicode);
   static void splitByteRange(const std::vector<unsigned char>& start,
                              const std::vector<unsigned char>& end, std::vector<Seq>& ranges);
+  static size_t longestPathFromHir(const Parser::Hir& hir);
+  static size_t utf8ByteLength(uint32_t codepoint);
 };
 } // namespace Sregex::Automata

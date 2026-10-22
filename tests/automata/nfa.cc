@@ -173,15 +173,30 @@ TEST(NfaTest, isMatchWithAlternation) {
 }
 
 TEST(NfaTest, longestPath) {
-  Nfa nfa1("(a|1)+");
-  ASSERT_TRUE(nfa1.ok());
-  EXPECT_EQ(nfa1.longestPath(), 1);
-  Nfa nfa2("(ab|1234)+");
-  ASSERT_TRUE(nfa2.ok());
-  EXPECT_EQ(nfa2.longestPath(), 4);
-  Nfa nfa3("(你*|好+|(hello)?|(hi){2,4})+世界");
-  ASSERT_TRUE(nfa3.ok());
-  EXPECT_EQ(nfa3.longestPath(), 14);
+  {
+    Nfa nfa("(a|1)+");
+    ASSERT_TRUE(nfa.ok());
+    EXPECT_EQ(nfa.longestPath(), 1);
+  }
+
+  {
+    Nfa nfa("(ab|1234)+");
+    ASSERT_TRUE(nfa.ok());
+    EXPECT_EQ(nfa.longestPath(), 4);
+  }
+
+  {
+    Nfa nfa("(你*|好+|(hello)?|(hi){2,4})+世界");
+    ASSERT_TRUE(nfa.ok());
+    EXPECT_EQ(nfa.longestPath(), 14);
+  }
+
+  {
+    Nfa nfa(
+        "[A-Za-z0-9._%+-]{1,15}@[A-Za-z0-9-]{1,15}([.][A-Za-z0-9-]{1,15}){1,3}[.][A-Za-z]{2,8}");
+    nfa.toDotSvg("1.svg");
+    ASSERT_TRUE(nfa.ok());
+  }
 }
 
 TEST(NfaTest, isPartialMatch) {

@@ -43,6 +43,7 @@ Nfa NfaBuilder::withPattern(const std::string& pattern) {
 
 Nfa NfaBuilder::withPatterns(const std::span<const std::string>& patterns) {
   std::vector<Nfa> nfas;
+  size_t longest_path = 0;
   for (const auto& pattern : patterns) {
     auto sub_nfa = withPattern(pattern);
     if (!sub_nfa.ok()) {
@@ -50,13 +51,16 @@ Nfa NfaBuilder::withPatterns(const std::span<const std::string>& patterns) {
       nfa.err_ = sub_nfa.err();
       return nfa;
     }
+    longest_path = std::max(longest_path, sub_nfa.longest_path_);
     nfas.emplace_back(std::move(sub_nfa));
   }
 
   if (nfas.size() == 1) {
     return std::move(nfas[0]);
   } else {
-    return withAlternation(nfas);
+    Nfa nfa = withAlternation(nfas);
+    nfa.longest_path_ = longest_path;
+    return nfa;
   }
 }
 
@@ -119,6 +123,10 @@ Nfa NfaBuilder::withHir(const Parser::Hir& hir) {
         }
       },
       hir.kind);
+
+  if (nfa.ok()) {
+    nfa.longest_path_ = longestPathFromHir(hir);
+  }
 
   return nfa;
 }
@@ -587,6 +595,69 @@ void NfaBuilder::splitByteRange(const std::vector<unsigned char>& start,
       }
     }
   }
+}
+
+size_t NfaBuilder::longestPathFromHir(const Parser::Hir& hir) {
+  using namespace Parser;
+
+  return std::visit(
+      [&](auto&& kind) -> size_t {
+        using T = std::decay_t<decltype(kind)>;
+        if constexpr (std::is_same_v<T, EmptyKind>) {
+          return 0;
+        } else if constexpr (std::is_same_v<T, LiteralKind>) {
+          return kind.size();
+        } else if constexpr (std::is_same_v<T, UnicodeClassKind>) {
+          size_t best = 0;
+          for (const auto& range : kind.ranges_) {
+            best = std::max(best, utf8ByteLength(range.start_));
+            best = std::max(best, utf8ByteLength(range.end_));
+          }
+          return best;
+        } else if constexpr (std::is_same_v<T, AnchorKind>) {
+          return 0;
+        } else if constexpr (std::is_same_v<T, RepetitionKind>) {
+          const size_t unit = longestPathFromHir(*kind.sub_);
+          if (kind.max_.has_value()) {
+            return unit * kind.max_.value();
+          }
+          if (kind.min_ == 0) {
+            return unit;
+          }
+          if (kind.min_ == 1) {
+            return unit;
+          }
+          return unit * (kind.min_ + 1);
+        } else if constexpr (std::is_same_v<T, CaptureKind>) {
+          return longestPathFromHir(*kind.sub_);
+        } else if constexpr (std::is_same_v<T, ConcatKind>) {
+          size_t total = 0;
+          for (const auto& sub : kind) {
+            total += longestPathFromHir(*sub);
+          }
+          return total;
+        } else if constexpr (std::is_same_v<T, AlternationKind>) {
+          size_t best = 0;
+          for (const auto& sub : kind) {
+            best = std::max(best, longestPathFromHir(*sub));
+          }
+          return best;
+        }
+      },
+      hir.kind);
+}
+
+size_t NfaBuilder::utf8ByteLength(uint32_t codepoint) {
+  if (codepoint <= 0x7F) {
+    return 1;
+  }
+  if (codepoint <= 0x7FF) {
+    return 2;
+  }
+  if (codepoint <= 0xFFFF) {
+    return 3;
+  }
+  return 4;
 }
 
 } // namespace Sregex::Automata
