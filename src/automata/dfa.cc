@@ -24,7 +24,6 @@
 #include <format>
 #include <map>
 #include <numeric>
-#include <optional>
 #include <queue>
 #include <stack>
 
@@ -48,7 +47,27 @@ Dfa::Dfa(const std::span<const std::string>& patterns) {
   buildTransitionsTables();
 }
 
-bool Dfa::isMatchImpl(const char* input, size_t length) const { throw "Not implemented!"; }
+bool Dfa::isMatchImpl(const char* input, size_t length) const {
+  StateId current_state = start_state_;
+  for (size_t offset = 0; offset < length; ++offset) {
+    const char* current_input = input + offset;
+    size_t remaining_length = length - offset;
+    for (size_t i = 0; i < remaining_length; ++i) {
+      std::optional<StateId> next = nextState(current_state, current_input[i]);
+      if (next.has_value()) {
+        current_state = next.value();
+        if (states_[current_state].is_accept_state_) {
+          return true;
+        }
+      } else {
+        break;
+      }
+    }
+    current_state = start_state_;
+  }
+
+  return false;
+}
 
 bool Dfa::isPartialMatchImpl(const char* input, size_t length) const { throw "Not implemented!"; }
 
@@ -164,7 +183,12 @@ std::string Dfa::toDotImpl() const {
 void Dfa::normalize() {
   for (auto& state : states_) {
     std::sort(state.transitions_.begin(), state.transitions_.end(),
-              [](const Transition& a, const Transition& b) { return a.start_ < b.start_; });
+              [](const Transition& a, const Transition& b) {
+                if (a.start_ != b.start_) {
+                  return a.start_ < b.start_;
+                }
+                return a.end_ < b.end_;
+              });
   }
 }
 
@@ -205,19 +229,19 @@ void Dfa::minimize() {
   while (1) {
     using RangeStart = uint32_t;
     using RangeEnd = uint32_t;
-    using Signature = std::vector<std::tuple<RangeStart, RangeEnd, PartitionID>>;
+    using Signature = std::vector<std::tuple<PartitionID, RangeStart, RangeEnd, PartitionID>>;
     using States = std::vector<StateId>;
 
     std::map<Signature, States> signatures;
     for (size_t state_id = 0; state_id < states_.size(); ++state_id) {
       const auto& state = states_[state_id];
       // Calculate the signature for the current state.
-      // The signature consists of the labels (as ranges) of the transitions and the partition IDs
-      // of their targets.
+      // The signature consists of the ranges of the transitions and the partition IDs of their
+      // targets.
       Signature signature;
       signature.reserve(state.transitions_.size());
       for (const auto& transition : state.transitions_) {
-        signature.emplace_back(transition.start_, transition.end_,
+        signature.emplace_back(partition_ids[state_id], transition.start_, transition.end_,
                                partition_ids[transition.target_]);
       }
       signatures[signature].push_back(state_id);
@@ -462,6 +486,25 @@ void Dfa::buildTransitionsTables() {
   for (auto& state : states_) {
     state.buildTransitionsTable();
   }
+}
+
+std::optional<StateId> Dfa::nextState(StateId current, char input) const {
+  const State& state = states_[current];
+
+  if (input < 128) {
+    // Lookup the transition table
+    if (state.transition_table_[input] != std::numeric_limits<State::TableStateID>::max()) {
+      return static_cast<StateId>(state.transition_table_[input]);
+    }
+  } else {
+    for (const auto& t : state.transitions_) {
+      if (t.matches(input)) {
+        return t.target_;
+      }
+    }
+  }
+
+  return std::nullopt;
 }
 
 void Dfa::State::buildTransitionsTable() {

@@ -23,6 +23,7 @@
 #include <array>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -74,7 +75,11 @@ private:
                              ReorderMetrics& metrics) const;
   void applyReorderedMap(const std::vector<StateId>& reordered_map);
 
+  // Build the transition tables for all states based on their transitions.
   void buildTransitionsTables();
+
+  // Get the next state for the given input character from the current state, if it exists.
+  std::optional<StateId> nextState(StateId current, char input) const;
 
 private:
   struct State {
