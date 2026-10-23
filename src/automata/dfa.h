@@ -20,16 +20,66 @@
  */
 #pragma once
 
+#include <array>
+#include <cstdint>
+#include <limits>
+#include <span>
 #include <vector>
 
 #include "automaton.h"
+#include "transition.h"
 
 namespace Sregex::Automata {
 class Dfa : public Automaton<Dfa> {
+  friend class Automaton<Dfa>;
+  friend class Nfa;
+
 public:
-  Dfa(const std::vector<std::string>& patterns);
+  Dfa() = default;
+  Dfa(const std::string& pattern);
+  Dfa(const std::span<const std::string>& patterns);
+  Dfa(const Dfa& other) = delete;
+  Dfa& operator=(const Dfa& other) = delete;
+  Dfa(Dfa&& other) = default;
+  Dfa& operator=(Dfa&& other) = default;
 
 protected:
+  // Implementation of the isMatch interface
   bool isMatchImpl(const char* input, size_t length) const;
+
+  // Implementation of the isPartialMatch interface
+  bool isPartialMatchImpl(const char* input, size_t length) const;
+
+  // Implementation of the longestPath interface
+  size_t longestPathImpl() const;
+
+  // Implementation of the toDot interface
+  std::string toDotImpl() const;
+
+private:
+  // Normalize the DFA by sorting the transitions of each state.
+  void normalize();
+
+  // Use partition refinement(Moore) to minimize the DFA.
+  void minimize();
+  void buildTransitionsTables();
+
+private:
+  struct State {
+    bool is_accept_state_ = false;
+    std::vector<Transition> transitions_;
+
+    // 128 ASCII characters, each entry is a u16 representing the target state ID
+    using TableStateID = uint32_t;
+    std::array<TableStateID, 128> transition_table_;
+
+    State() { transition_table_.fill(std::numeric_limits<TableStateID>::max()); }
+
+    void buildTransitionsTable();
+  };
+
+private:
+  std::vector<State> states_;
+  StateId start_state_;
 };
 } // namespace Sregex::Automata

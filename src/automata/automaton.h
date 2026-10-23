@@ -21,6 +21,7 @@
 #pragma once
 
 #include <cstring>
+#include <format>
 #include <fstream>
 #include <optional>
 #include <string>
@@ -30,6 +31,21 @@ namespace Sregex::Automata {
 struct MatchInfo;
 
 template <class Derived> class Automaton {
+public:
+  /**
+   * Checks if the NFA is in a valid state (no errors)
+   *
+   * @return true if the NFA is in a valid state, false otherwise
+   */
+  bool ok() const { return err_.empty(); }
+
+  /**
+   * Returns the error message if the NFA is in an invalid state
+   *
+   * @return the error message string
+   */
+  const std::string& err() const { return err_; }
+
 public:
   /**
    * Checks if the input string matches the automaton's patterns
@@ -102,7 +118,27 @@ public:
     }
   }
 
+protected:
+  static std::string scalarLabelToken(unsigned char c) {
+    if (c == ' ') {
+      return "SP";
+    }
+
+    if (c == '"' || c == '\\') {
+      return std::format("0x{:02x}", c);
+    }
+
+    if (c >= 0x21 && c <= 0x7e) {
+      return std::format("{}", static_cast<char>(c));
+    }
+
+    return std::format("0x{:02x}", c);
+  }
+
 private:
   const Derived& derived() const { return static_cast<const Derived&>(*this); }
+
+protected:
+  std::string err_;
 };
 } // namespace Sregex::Automata

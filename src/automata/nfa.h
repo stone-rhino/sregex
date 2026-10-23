@@ -29,6 +29,8 @@
 #include "transition.h"
 
 namespace Sregex::Automata {
+class Dfa;
+
 /**
  * A non-deterministic finite automaton (NFA) for pattern matching
  */
@@ -47,18 +49,11 @@ public:
 
 public:
   /**
-   * Checks if the NFA is in a valid state (no errors)
+   * Converts the NFA to an equivalent DFA
    *
-   * @return true if the NFA is in a valid state, false otherwise
+   * @return the resulting DFA
    */
-  bool ok() const { return err_.empty(); }
-
-  /**
-   * Returns the error message if the NFA is in an invalid state
-   *
-   * @return the error message string
-   */
-  const std::string& err() const { return err_; }
+  Dfa toDfa() const;
 
 protected:
   // Implementation of the isMatch interface
@@ -86,11 +81,15 @@ private:
 
   // Performs a depth-first search to check if the NFA partially accepts the input string starting
   // from the given state and position
-  bool dfsPartial(StateId state, const char* input, size_t length,
-                  std::vector<int8_t>& memo, size_t memo_width) const;
+  bool dfsPartial(StateId state, const char* input, size_t length, std::vector<int8_t>& memo,
+                  size_t memo_width) const;
 
   // Computes the length of the longest path in the NFA starting from the given state
   int64_t longestPathFrom(StateId state, std::vector<bool>& visited) const;
+
+  // Splits overlapping transitions into non-overlapping intervals using the scanline algorithm
+  std::vector<std::pair<Transition, std::vector<StateId>>> splitTransitionsWithScanline(
+      const std::vector<std::pair<Transition, std::vector<StateId>>>& transitions) const;
 
 private:
   struct State {
@@ -116,7 +115,6 @@ private:
   std::vector<ClosureCache> epsilon_closure_cache_;
   StateId start_state_;
   StateId accept_state_;
-  std::string err_;
   size_t longest_path_;
 };
 } // namespace Sregex::Automata

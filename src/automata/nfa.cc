@@ -22,8 +22,15 @@
 
 #include <algorithm>
 #include <format>
+#include <queue>
+#include <set>
 #include <stack>
+#include <unordered_map>
+#include <unordered_set>
 
+#include <assert.h>
+
+#include "dfa.h"
 #include "nfa_builder.h"
 
 namespace Sregex::Automata {
@@ -39,6 +46,98 @@ Nfa::Nfa(const std::span<const std::string>& patterns) {
   if (ok()) {
     buildEpsilonClosureCache();
   }
+}
+
+Dfa Nfa::toDfa() const {
+  struct VecHash {
+    std::size_t operator()(const std::vector<StateId>& v) const noexcept {
+      std::size_t h = 0;
+      for (StateId x : v) {
+        h ^= std::hash<StateId>{}(x) + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+      }
+      return h;
+    }
+  };
+
+  std::vector<StateId> start_ids = epsilonClosure(start_state_);
+  std::unordered_set<StateId> accept_ids;
+  if (std::any_of(start_ids.begin(), start_ids.end(),
+                  [this](StateId id) { return id == accept_state_; })) {
+    accept_ids.insert(0);
+  }
+
+  std::vector<std::vector<StateId>> dfa_states(1, start_ids);
+  std::vector<std::vector<Transition>> dfa_transitions(1);
+  std::unordered_map<std::vector<StateId>, StateId, VecHash> dfa_state_ids;
+
+  std::queue<StateId> queue;
+  queue.push(0);
+  while (!queue.empty()) {
+    StateId dfa_state_id = queue.front();
+    queue.pop();
+
+    // Collect all transitions from the NFA states in the current DFA state
+    std::vector<std::pair<Transition, std::vector<StateId>>> transitions;
+    for (StateId state : dfa_states[dfa_state_id]) {
+      for (const auto& t : states_[state].transitions_) {
+        std::vector<StateId> targets = epsilonClosure(t.target_);
+        transitions.emplace_back(t, targets);
+      }
+    }
+    if (transitions.empty()) {
+      continue;
+    }
+
+    // Use the scanline algorithm to split overlapping transitions into non-overlapping intervals
+    std::vector<std::pair<Transition, std::vector<StateId>>> split_transitions =
+        splitTransitionsWithScanline(transitions);
+
+    // Collect the transitions for the current DFA state
+    std::vector<Transition> current_transitions;
+    for (const auto& [range, targets] : split_transitions) {
+      // Map the split transition to a unique DFA state
+      StateId state_id;
+      auto iter = dfa_state_ids.find(targets);
+      if (iter != dfa_state_ids.end()) {
+        state_id = iter->second;
+      } else {
+        state_id = dfa_states.size();
+
+        // Check if the new DFA state is an accept state
+        if (std::any_of(targets.begin(), targets.end(),
+                        [this](StateId id) { return id == accept_state_; })) {
+          accept_ids.insert(state_id);
+        }
+
+        // Add the new DFA state to the list and the mapping
+        dfa_states.push_back(targets);
+        dfa_transitions.emplace_back();
+
+        dfa_state_ids[targets] = state_id;
+
+        // Add the new DFA state to the queue for processing
+        queue.push(state_id);
+      }
+
+      current_transitions.push_back({range.start_, range.end_, state_id});
+    }
+
+    // Store the collected transitions for the current DFA state
+    dfa_transitions[dfa_state_id] = std::move(current_transitions);
+  }
+
+  assert(dfa_states.size() == dfa_transitions.size());
+
+  // Create the DFA states from the collected transitions
+  Dfa dfa;
+  dfa.states_.resize(dfa_transitions.size());
+  for (size_t i = 0; i < dfa_transitions.size(); ++i) {
+    dfa.states_[i].is_accept_state_ = accept_ids.contains(i);
+    dfa.states_[i].transitions_ = std::move(dfa_transitions[i]);
+  }
+  dfa.start_state_ = 0;
+
+  return dfa;
 }
 
 bool Nfa::isMatchImpl(const char* input, size_t length) const {
@@ -58,22 +157,6 @@ bool Nfa::isPartialMatchImpl(const char* input, size_t length) const {
   }
 
   return false;
-}
-
-std::string scalarLabelToken(unsigned char c) {
-  if (c == ' ') {
-    return "SP";
-  }
-
-  if (c == '"' || c == '\\') {
-    return std::format("0x{:02x}", c);
-  }
-
-  if (c >= 0x21 && c <= 0x7e) {
-    return std::format("{}", static_cast<char>(c));
-  }
-
-  return std::format("0x{:02x}", c);
 }
 
 std::string Nfa::toDotImpl() const {
@@ -223,5 +306,54 @@ bool Nfa::dfsPartial(StateId state, const char* input, size_t length, std::vecto
 
   memo[memo_index] = 0;
   return false;
+}
+
+std::vector<std::pair<Transition, std::vector<StateId>>> Nfa::splitTransitionsWithScanline(
+    const std::vector<std::pair<Transition, std::vector<StateId>>>& transitions) const {
+  // Collect all unique points (start and end+1)
+  std::vector<uint32_t> points;
+  for (const auto& [transition, _] : transitions) {
+    points.push_back(transition.start_);
+    points.push_back(transition.end_ + 1);
+  }
+  std::sort(points.begin(), points.end());
+  points.erase(std::unique(points.begin(), points.end()), points.end());
+
+  // For each interval between points, find the target set
+  std::vector<std::pair<Transition, std::vector<StateId>>> interval_targets;
+  for (size_t i = 0; i < points.size() - 1; ++i) {
+    uint32_t interval_start = points[i];
+    uint32_t interval_end = points[i + 1] - 1;
+
+    // Use std::set to maintain order and uniqueness of target states
+    std::set<StateId> target_set;
+    for (const auto& [range, targets] : transitions) {
+      if (range.start_ <= interval_end && range.end_ >= interval_start) {
+        target_set.insert(targets.begin(), targets.end());
+      }
+    }
+
+    // Collect the target states for this interval if there are any
+    if (!target_set.empty()) {
+      interval_targets.emplace_back(Transition{static_cast<unsigned char>(interval_start),
+                                               static_cast<unsigned char>(interval_end), 0},
+                                    std::vector<StateId>(target_set.begin(), target_set.end()));
+    }
+  }
+
+  // Merge adjacent intervals with the same target set
+  std::vector<std::pair<Transition, std::vector<StateId>>> merged_intervals;
+  for (const auto& [range, targets] : interval_targets) {
+    if (!merged_intervals.empty()) {
+      auto& last_range = merged_intervals.back().first;
+      auto& last_targets = merged_intervals.back().second;
+      if (last_range.end_ + 1 == range.start_ && last_targets == targets) {
+        last_range.end_ = range.end_;
+      }
+    }
+    merged_intervals.push_back({range, targets});
+  }
+
+  return merged_intervals;
 }
 } // namespace Sregex::Automata

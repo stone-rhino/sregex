@@ -23,5 +23,10 @@
 #include "gtest/gtest.h"
 
 namespace Sregex::Automata {
-TEST(DfaTest, Basic) {}
+TEST(DfaTest, Constructor) {
+  std::vector<std::string> patterns = {"(z*|y+|(hello)?|(hi){2,4})+lbl", "ab12", "ab34"};
+  Dfa dfa(patterns);
+  EXPECT_TRUE(dfa.ok());
+  dfa.toDotSvg("1.svg");
+}
 } // namespace Sregex::Automata
