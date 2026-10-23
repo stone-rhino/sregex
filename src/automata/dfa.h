@@ -62,6 +62,18 @@ private:
 
   // Use partition refinement(Moore) to minimize the DFA.
   void minimize();
+
+  // Reorder states to improve locality in the state array.
+  // This keeps the language recognized by the DFA unchanged while remapping state IDs to place
+  // traversal-near states closer in memory.
+  void reorderStatesForLocality();
+  std::vector<StateId> buildReorderedMapBFS() const;
+  std::vector<StateId> buildReorderedMapDFS() const;
+  struct ReorderMetrics;
+  void computeReorderMetrics(const std::vector<StateId>& reordered_map,
+                             ReorderMetrics& metrics) const;
+  void applyReorderedMap(const std::vector<StateId>& reordered_map);
+
   void buildTransitionsTables();
 
 private:
@@ -78,8 +90,25 @@ private:
     void buildTransitionsTable();
   };
 
+  struct ReorderMetrics {
+    size_t edge_count_ = 0;
+    size_t total_abs_delta_ = 0;
+    double avg_abs_delta_ = 0;
+    size_t p50_abs_delta_ = 0;
+    size_t p90_abs_delta_ = 0;
+    size_t max_abs_delta_ = 0;
+    double adjacent_ratio_ = 0;
+    double near2_ratio_ = 0;
+    double near4_ratio_ = 0;
+    double long8_ratio_ = 0;
+    size_t start_edge_count_ = 0;
+    double start_avg_abs_delta_ = 0;
+  };
+
 private:
   std::vector<State> states_;
   StateId start_state_;
+  ReorderMetrics bfs_metrics_;
+  ReorderMetrics dfs_metrics_;
 };
 } // namespace Sregex::Automata

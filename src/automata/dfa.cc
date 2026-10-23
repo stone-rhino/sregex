@@ -23,6 +23,10 @@
 #include <algorithm>
 #include <format>
 #include <map>
+#include <numeric>
+#include <optional>
+#include <queue>
+#include <stack>
 
 #include "nfa.h"
 
@@ -31,6 +35,7 @@ Dfa::Dfa(const std::string& pattern) {
   *this = Nfa(pattern).toDfa();
   normalize();
   minimize();
+  reorderStatesForLocality();
   buildTransitionsTables();
 }
 
@@ -39,6 +44,7 @@ Dfa::Dfa(const std::span<const std::string>& patterns) {
   *this = nfa.toDfa();
   normalize();
   minimize();
+  reorderStatesForLocality();
   buildTransitionsTables();
 }
 
@@ -50,6 +56,39 @@ size_t Dfa::longestPathImpl() const { throw "Not implemented!"; }
 
 std::string Dfa::toDotImpl() const {
   std::string dot = "digraph DFA {\n";
+
+  dot.append("  labelloc=\"t\";\n");
+  dot.append("  labeljust=\"l\";\n");
+  std::string selected =
+      bfs_metrics_.total_abs_delta_ < dfs_metrics_.total_abs_delta_ ? "BFS" : "DFS";
+  dot.append(std::format("  // reorder: selected={}, bfs_score={}, dfs_score={}\n", selected,
+                         bfs_metrics_.total_abs_delta_, dfs_metrics_.total_abs_delta_));
+  dot.append(std::format(
+      "  debug_info [shape=note, fontsize=10, label=\""
+      "reorder: {}\\l"
+      "bfs_score: {}\\l"
+      "dfs_score: {}\\l\\l"
+      "BFS edge_count: {}\\l"
+      "BFS avg_abs_delta: {:.3}\\l"
+      "BFS p50/p90/max: {}/{}/{}\\l"
+      "BFS adjacent/near2/near4/long8: {:.3}/{:.3}/{:.3}/{:.3}\\l"
+      "BFS start_edge_count/start_avg: {}/{:.3}\\l\\l"
+      "DFS edge_count: {}\\l"
+      "DFS avg_abs_delta: {:.3}\\l"
+      "DFS p50/p90/max: {}/{}/{}\\l"
+      "DFS adjacent/near2/near4/long8: {:.3}/{:.3}/{:.3}/{:.3}\\l"
+      "DFS start_edge_count/start_avg: {}/{:.3}\\l\"];\n",
+      selected, bfs_metrics_.total_abs_delta_, dfs_metrics_.total_abs_delta_,
+      bfs_metrics_.edge_count_, bfs_metrics_.avg_abs_delta_, bfs_metrics_.p50_abs_delta_,
+      bfs_metrics_.p90_abs_delta_, bfs_metrics_.max_abs_delta_, bfs_metrics_.adjacent_ratio_,
+      bfs_metrics_.near2_ratio_, bfs_metrics_.near4_ratio_, bfs_metrics_.long8_ratio_,
+      bfs_metrics_.start_edge_count_, bfs_metrics_.start_avg_abs_delta_, dfs_metrics_.edge_count_,
+      dfs_metrics_.avg_abs_delta_, dfs_metrics_.p50_abs_delta_, dfs_metrics_.p90_abs_delta_,
+      dfs_metrics_.max_abs_delta_, dfs_metrics_.adjacent_ratio_, dfs_metrics_.near2_ratio_,
+      dfs_metrics_.near4_ratio_, dfs_metrics_.long8_ratio_, dfs_metrics_.start_edge_count_,
+      dfs_metrics_.start_avg_abs_delta_));
+  dot.append("  debug_info -> start [style=dashed, arrowhead=none, color=gray60];\n");
+
   dot.append("  rankdir=LR;\n");
 
   // Add an invisible start node that points to the actual start state
@@ -235,6 +274,188 @@ void Dfa::minimize() {
   // Update the DFA
   states_ = std::move(new_states);
   start_state_ = new_start;
+}
+
+void Dfa::reorderStatesForLocality() {
+  if (states_.size() <= 1) {
+    return;
+  }
+
+  auto bfs_map = buildReorderedMapBFS();
+  auto dfs_map = buildReorderedMapDFS();
+  computeReorderMetrics(bfs_map, bfs_metrics_);
+  computeReorderMetrics(dfs_map, dfs_metrics_);
+  if (bfs_metrics_.total_abs_delta_ < dfs_metrics_.total_abs_delta_) {
+    applyReorderedMap(bfs_map);
+  } else {
+    applyReorderedMap(dfs_map);
+  }
+}
+
+std::vector<StateId> Dfa::buildReorderedMapBFS() const {
+  std::vector<std::optional<StateId>> old_to_new(states_.size());
+  std::queue<StateId> queue;
+  StateId next_id = 0;
+
+  old_to_new[start_state_] = next_id;
+  ++next_id;
+  queue.push(start_state_);
+
+  while (!queue.empty()) {
+    StateId sid = queue.front();
+    queue.pop();
+
+    std::vector<StateId> targets;
+    for (const auto& transition : states_[sid].transitions_) {
+      targets.push_back(transition.target_);
+    }
+    std::sort(targets.begin(), targets.end());
+    targets.erase(std::unique(targets.begin(), targets.end()), targets.end());
+
+    for (StateId target : targets) {
+      if (old_to_new[target] == std::nullopt) {
+        old_to_new[target] = next_id;
+        ++next_id;
+        queue.push(target);
+      }
+    }
+  }
+
+  for (auto& slot : old_to_new) {
+    if (!slot.has_value()) {
+      slot = next_id;
+      ++next_id;
+    }
+  }
+
+  std::vector<StateId> result;
+  for (const auto& slot : old_to_new) {
+    result.push_back(slot.value());
+  }
+  return result;
+}
+
+std::vector<StateId> Dfa::buildReorderedMapDFS() const {
+  std::vector<std::optional<StateId>> old_to_new(states_.size());
+  std::stack<StateId> stack;
+  StateId next_id = 0;
+
+  stack.push(start_state_);
+
+  while (!stack.empty()) {
+    StateId sid = stack.top();
+    stack.pop();
+
+    if (old_to_new[sid] == std::nullopt) {
+      continue;
+    }
+
+    old_to_new[sid] = next_id;
+    ++next_id;
+
+    std::vector<StateId> targets;
+    for (const auto& transition : states_[sid].transitions_) {
+      targets.push_back(transition.target_);
+    }
+    std::sort(targets.begin(), targets.end());
+    targets.erase(std::unique(targets.begin(), targets.end()), targets.end());
+
+    // Reverse push so the smallest target is visited first on pop
+    for (auto iter = targets.rbegin(); iter != targets.rend(); ++iter) {
+      StateId target = *iter;
+      if (old_to_new[target] == std::nullopt) {
+        stack.push(target);
+      }
+    }
+  }
+
+  for (auto& slot : old_to_new) {
+    if (!slot.has_value()) {
+      slot = next_id;
+      ++next_id;
+    }
+  }
+
+  std::vector<StateId> result;
+  for (const auto& slot : old_to_new) {
+    result.push_back(slot.value());
+  }
+  return result;
+}
+
+void Dfa::computeReorderMetrics(const std::vector<StateId>& old_to_new,
+                                ReorderMetrics& metrics) const {
+  std::vector<size_t> deltas;
+  std::vector<size_t> start_deltas;
+
+  for (size_t state_id = 0; state_id < states_.size(); ++state_id) {
+    const auto& state = states_[state_id];
+    StateId src = old_to_new[state_id];
+    for (const auto& t : state.transitions_) {
+      StateId dst = old_to_new[t.target_];
+      size_t delta = (src > dst) ? (src - dst) : (dst - src);
+      deltas.push_back(delta);
+      if (state_id == start_state_) {
+        start_deltas.push_back(delta);
+      }
+    }
+  }
+
+  if (deltas.empty()) {
+    return;
+  }
+
+  metrics.edge_count_ = deltas.size();
+  metrics.total_abs_delta_ = std::accumulate(deltas.begin(), deltas.end(), size_t(0));
+  metrics.avg_abs_delta_ = static_cast<double>(metrics.total_abs_delta_) / metrics.edge_count_;
+
+  size_t adjacent_count = 0;
+  size_t near2_count = 0;
+  size_t near4_count = 0;
+  size_t long8_count = 0;
+  for (size_t delta : deltas) {
+    if (delta == 1) {
+      ++adjacent_count;
+    }
+    if (delta <= 2) {
+      ++near2_count;
+    }
+    if (delta <= 4) {
+      ++near4_count;
+    }
+    if (delta >= 8) {
+      ++long8_count;
+    }
+  }
+  metrics.adjacent_ratio_ = static_cast<double>(adjacent_count) / metrics.edge_count_;
+  metrics.near2_ratio_ = static_cast<double>(near2_count) / metrics.edge_count_;
+  metrics.near4_ratio_ = static_cast<double>(near4_count) / metrics.edge_count_;
+  metrics.long8_ratio_ = static_cast<double>(long8_count) / metrics.edge_count_;
+
+  std::sort(deltas.begin(), deltas.end());
+  metrics.p50_abs_delta_ = deltas[metrics.edge_count_ / 2];
+  metrics.p90_abs_delta_ = deltas[(metrics.edge_count_ - 1) * 9 / 10];
+  metrics.max_abs_delta_ = deltas.back();
+
+  metrics.start_edge_count_ = start_deltas.size();
+  metrics.start_avg_abs_delta_ = metrics.start_edge_count_ == 0
+                                     ? 0.0
+                                     : static_cast<double>(std::accumulate(
+                                           start_deltas.begin(), start_deltas.end(), size_t(0))) /
+                                           metrics.start_edge_count_;
+}
+
+void Dfa::applyReorderedMap(const std::vector<StateId>& old_to_new) {
+  std::vector<State> reordered(states_.size());
+
+  for (StateId old_id = 0; old_id < states_.size(); ++old_id) {
+    StateId new_id = old_to_new[old_id];
+    State& old_state = states_[old_id];
+    reordered[new_id] = std::move(old_state);
+  }
+
+  start_state_ = old_to_new[start_state_];
+  states_ = std::move(reordered);
 }
 
 void Dfa::buildTransitionsTables() {

@@ -24,7 +24,8 @@
 
 namespace Sregex::Automata {
 TEST(DfaTest, Constructor) {
-  std::vector<std::string> patterns = {"(z*|y+|(hello)?|(hi){2,4})+lbl", "ab12", "ab34"};
+  std::vector<std::string> patterns = {"(你*|好+|(hello)?|(hi){2,4})+世界", "ab12", "ab34",
+                                       "[一-龥]"};
   Dfa dfa(patterns);
   EXPECT_TRUE(dfa.ok());
   dfa.toDotSvg("1.svg");
