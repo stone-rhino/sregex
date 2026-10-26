@@ -70,28 +70,42 @@ bool Dfa::isMatchImpl(const char* input, size_t length) const {
 
 bool Dfa::isPartialMatchImpl(const char* input, size_t length) const {
   size_t match_length = std::min(longest_path_, length);
+  if (match_length == 0) {
+    return false;
+  }
   const char* match_start = input + (length - match_length);
 
-  for (size_t offset = 0; offset < match_length; ++offset) {
-    StateId current_state = start_state_;
-    const char* current_input = match_start + offset;
-    size_t remaining_length = match_length - offset;
-    size_t matched_length = 0;
-    for (size_t i = 0; i < remaining_length; ++i) {
-      std::optional<StateId> next = nextState(current_state, current_input[i]);
+  enum class RunOutcome : uint8_t { NoMatch, AcceptReached, FullSuffixWithoutAccept };
+  std::vector<RunOutcome> next_outcomes(states_.size(), RunOutcome::NoMatch);
+  std::vector<RunOutcome> current_outcomes(states_.size(), RunOutcome::NoMatch);
+
+  // Scan the tail window once from right to left and propagate the run outcome for every DFA state
+  // at each position
+  for (int64_t pos = match_length - 1; pos >= 0; --pos) {
+    const bool is_last_pos = (pos == match_length - 1);
+    for (StateId sid = 0; sid < states_.size(); ++sid) {
+      std::optional<StateId> next = nextState(sid, match_start[pos]);
       if (next.has_value()) {
-        ++matched_length;
-        current_state = next.value();
-        if (states_[current_state].is_accept_state_) {
-          return false;
+        if (states_[next.value()].is_accept_state_) {
+          current_outcomes[sid] = RunOutcome::AcceptReached;
+        } else {
+          current_outcomes[sid] =
+              is_last_pos ? RunOutcome::FullSuffixWithoutAccept : next_outcomes[next.value()];
         }
       } else {
-        break;
+        current_outcomes[sid] = RunOutcome::NoMatch;
       }
     }
-    if (matched_length == remaining_length) {
+
+    const RunOutcome start_outcome = current_outcomes[start_state_];
+    if (start_outcome == RunOutcome::AcceptReached) {
+      return false;
+    }
+    if (start_outcome == RunOutcome::FullSuffixWithoutAccept) {
       return true;
     }
+
+    std::swap(current_outcomes, next_outcomes);
   }
 
   return false;
