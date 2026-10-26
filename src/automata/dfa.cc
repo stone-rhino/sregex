@@ -48,8 +48,8 @@ Dfa::Dfa(const std::span<const std::string>& patterns) {
 }
 
 bool Dfa::isMatchImpl(const char* input, size_t length) const {
-  StateId current_state = start_state_;
   for (size_t offset = 0; offset < length; ++offset) {
+    StateId current_state = start_state_;
     const char* current_input = input + offset;
     size_t remaining_length = length - offset;
     for (size_t i = 0; i < remaining_length; ++i) {
@@ -63,13 +63,39 @@ bool Dfa::isMatchImpl(const char* input, size_t length) const {
         break;
       }
     }
-    current_state = start_state_;
   }
 
   return false;
 }
 
-bool Dfa::isPartialMatchImpl(const char* input, size_t length) const { throw "Not implemented!"; }
+bool Dfa::isPartialMatchImpl(const char* input, size_t length) const {
+  size_t match_length = std::min(longest_path_, length);
+  const char* match_start = input + (length - match_length);
+
+  for (size_t offset = 0; offset < match_length; ++offset) {
+    StateId current_state = start_state_;
+    const char* current_input = match_start + offset;
+    size_t remaining_length = match_length - offset;
+    size_t matched_length = 0;
+    for (size_t i = 0; i < remaining_length; ++i) {
+      std::optional<StateId> next = nextState(current_state, current_input[i]);
+      if (next.has_value()) {
+        ++matched_length;
+        current_state = next.value();
+        if (states_[current_state].is_accept_state_) {
+          return false;
+        }
+      } else {
+        break;
+      }
+    }
+    if (matched_length == remaining_length) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 std::string Dfa::toDotImpl() const {
   std::string dot = "digraph DFA {\n";

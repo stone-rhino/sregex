@@ -207,7 +207,65 @@ TYPED_TEST_P(CommonAutomataMatchTest, LongestPath) {
   }
 }
 
+TYPED_TEST_P(CommonAutomataMatchTest, IsPartialMatch) {
+  // Quantifier prefix
+  {
+    TypeParam automaton("a{3,5}b");
+    ASSERT_TRUE(automaton.ok());
+    EXPECT_TRUE(automaton.isPartialMatch("a"));
+    EXPECT_TRUE(automaton.isPartialMatch("aa"));
+    EXPECT_TRUE(automaton.isPartialMatch("aaa"));
+    EXPECT_TRUE(automaton.isPartialMatch("aaaa"));
+    EXPECT_TRUE(automaton.isPartialMatch("aaaaaa"));
+
+    const std::string padded = std::string(64, 'a') + "aaa";
+    EXPECT_TRUE(automaton.isPartialMatch(padded));
+
+    EXPECT_FALSE(automaton.isPartialMatch("aaaab"));
+    EXPECT_FALSE(automaton.isMatch("a"));
+    EXPECT_FALSE(automaton.isMatch("aa"));
+    EXPECT_TRUE(automaton.isMatch("aaaab"));
+  }
+
+  // Alternation prefix
+  {
+    TypeParam automaton("(cat|dog|elephant)s?");
+    ASSERT_TRUE(automaton.ok());
+    EXPECT_TRUE(automaton.isPartialMatch("ca"));
+    EXPECT_TRUE(automaton.isPartialMatch("do"));
+    EXPECT_TRUE(automaton.isPartialMatch("ele"));
+
+    const std::string padded = std::string(64, 'e') + "ele";
+    EXPECT_TRUE(automaton.isPartialMatch(padded));
+
+    EXPECT_FALSE(automaton.isMatch("ca"));
+    EXPECT_TRUE(automaton.isMatch("cat"));
+    EXPECT_TRUE(automaton.isMatch("dogs"));
+  }
+
+  // Partial match under anchors
+  // {
+  //   TypeParam automaton("^hello world$");
+  //   ASSERT_TRUE(automaton.ok());
+  //   EXPECT_TRUE(automaton.isPartialMatch("hello"));
+  //   EXPECT_TRUE(automaton.isPartialMatch("hello wor"));
+  //   EXPECT_FALSE(automaton.isMatch("hello"));
+  //   EXPECT_TRUE(automaton.isMatch("hello world"));
+  // }
+
+  // Assertion prefix
+  // {
+  //   TypeParam automaton("foo(?=bar)");
+  //   ASSERT_TRUE(automaton.ok());
+  //   EXPECT_TRUE(automaton.isPartialMatch("foo"));
+  //   EXPECT_TRUE(automaton.isPartialMatch("foob"));
+  //   EXPECT_FALSE(automaton.isMatch("foo"));
+  //   EXPECT_TRUE(automaton.isMatch("foobar"));
+  // }
+}
+
 REGISTER_TYPED_TEST_SUITE_P(CommonAutomataMatchTest, Constructor, IsMatchBasic,
-                            IsMatchWithQuantifiers, IsMatchWithAlternation, LongestPath);
+                            IsMatchWithQuantifiers, IsMatchWithAlternation, LongestPath,
+                            IsPartialMatch);
 
 } // namespace Sregex::Automata
