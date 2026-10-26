@@ -515,7 +515,7 @@ void Dfa::buildTransitionsTables() {
 std::optional<StateId> Dfa::nextState(StateId current, char input) const {
   const State& state = states_[current];
 
-  if (input < 128) {
+  if (input < State::kMaxTableAscii) {
     // Lookup the transition table
     if (state.transition_table_[input] != std::numeric_limits<State::TableStateID>::max()) {
       return static_cast<StateId>(state.transition_table_[input]);
@@ -537,20 +537,20 @@ void Dfa::State::buildTransitionsTable() {
 
   for (const auto& t : transitions_) {
     if (t.target_ < std::numeric_limits<TableStateID>::max()) {
-      if (t.start_ < 128) {
+      if (t.start_ < kMaxTableAscii) {
         if (t.end_ == t.start_) {
           transition_table_[t.start_] = t.target_;
         } else {
-          if (t.end_ < 128) {
+          if (t.end_ < kMaxTableAscii) {
             for (size_t i = t.start_; i <= t.end_; ++i) {
               transition_table_[i] = t.target_;
             }
           } else {
-            for (size_t i = t.start_; i < 128; ++i) {
+            for (size_t i = t.start_; i < kMaxTableAscii; ++i) {
               transition_table_[i] = t.target_;
             }
 
-            new_transitions.push_back({128, t.end_, t.target_});
+            new_transitions.push_back({kMaxTableAscii, t.end_, t.target_});
           }
         }
       } else {

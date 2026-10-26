@@ -85,7 +85,8 @@ private:
 
     // 128 ASCII characters, each entry is a u16 representing the target state ID
     using TableStateID = uint32_t;
-    std::array<TableStateID, 128> transition_table_;
+    constexpr static uint8_t kMaxTableAscii = 128;
+    std::array<TableStateID, kMaxTableAscii> transition_table_;
 
     State() { transition_table_.fill(std::numeric_limits<TableStateID>::max()); }
 
