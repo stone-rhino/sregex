@@ -565,7 +565,8 @@ static void BM_Sregex_Dfa_PartialScenario(benchmark::State& state,
   }
 }
 
-static void BM_PCRE2_PartialScenario(benchmark::State& state, const PreparedScenario& prepared) {
+static void BM_PCRE2_PartialScenario(benchmark::State& state, const PreparedScenario& prepared,
+                                     uint32_t partial_flags) {
   size_t match_length = std::min(prepared.nfa_.longestPath(), prepared.scenario_->input_.size());
   const char* match_start =
       prepared.scenario_->input_.c_str() + (prepared.scenario_->input_.size() - match_length);
@@ -573,13 +574,13 @@ static void BM_PCRE2_PartialScenario(benchmark::State& state, const PreparedScen
   for (auto _ : state) {
     int match_result =
         pcre2_match_8(prepared.pcre2_.compiled_, reinterpret_cast<PCRE2_SPTR8>(match_start),
-                      match_length, 0, PCRE2_PARTIAL_SOFT, prepared.pcre2_.match_data_, nullptr);
+                      match_length, 0, partial_flags, prepared.pcre2_.match_data_, nullptr);
     benchmark::DoNotOptimize(match_result);
   }
 }
 
-static void BM_PCRE2_JIT_PartialScenario(benchmark::State& state,
-                                         const PreparedScenario& prepared) {
+static void BM_PCRE2_JIT_PartialScenario(benchmark::State& state, const PreparedScenario& prepared,
+                                         uint32_t partial_flags) {
   if (!prepared.pcre2_jit_.jit_ready_) {
     state.SkipWithError(prepared.pcre2_jit_.jit_error_.c_str());
     return;
@@ -592,7 +593,7 @@ static void BM_PCRE2_JIT_PartialScenario(benchmark::State& state,
   for (auto _ : state) {
     int match_result = pcre2_match_8(
         prepared.pcre2_jit_.compiled_, reinterpret_cast<PCRE2_SPTR8>(match_start), match_length, 0,
-        PCRE2_PARTIAL_SOFT, prepared.pcre2_jit_.match_data_, prepared.pcre2_jit_.match_context_);
+        partial_flags, prepared.pcre2_jit_.match_data_, prepared.pcre2_jit_.match_context_);
     benchmark::DoNotOptimize(match_result);
   }
 }
@@ -623,12 +624,42 @@ static void BM_Sregex_Dfa_MultiScenario(benchmark::State& state,
   }
 }
 
-static void BM_PCRE2_MultiScenario(benchmark::State& state, const PreparedMultiScenario& prepared) {
+static void BM_PCRE2_MultiScenario(benchmark::State& state, const PreparedMultiScenario& prepared,
+                                   uint32_t partial_flags) {
   size_t input_index = 0;
   for (auto _ : state) {
     const auto& input = prepared.inputs_[input_index % prepared.inputs_.size()];
-    const uint32_t partial_flags =
-        (prepared.mode_ == ScenarioMode::PartialMatch) ? PCRE2_PARTIAL_SOFT : 0;
+    const uint32_t effective_partial_flags =
+        (prepared.mode_ == ScenarioMode::PartialMatch) ? partial_flags : 0;
+    size_t match_length = input.size();
+    const char* match_start = input.c_str();
+
+    if (prepared.mode_ == ScenarioMode::PartialMatch) {
+      match_length = std::min(prepared.nfa_.longestPath(), input.size());
+      match_start = input.c_str() + (input.size() - match_length);
+    }
+
+    int match_result = pcre2_match_8(prepared.pcre2_.compiled_,
+                                     reinterpret_cast<PCRE2_SPTR8>(match_start), match_length, 0,
+                                     effective_partial_flags, prepared.pcre2_.match_data_, nullptr);
+    benchmark::DoNotOptimize(match_result);
+    ++input_index;
+  }
+}
+
+static void BM_PCRE2_JIT_MultiScenario(benchmark::State& state,
+                                       const PreparedMultiScenario& prepared,
+                                       uint32_t partial_flags) {
+  if (!prepared.pcre2_jit_.jit_ready_) {
+    state.SkipWithError(prepared.pcre2_jit_.jit_error_.c_str());
+    return;
+  }
+
+  size_t input_index = 0;
+  for (auto _ : state) {
+    const auto& input = prepared.inputs_[input_index % prepared.inputs_.size()];
+    const uint32_t effective_partial_flags =
+        (prepared.mode_ == ScenarioMode::PartialMatch) ? partial_flags : 0;
     size_t match_length = input.size();
     const char* match_start = input.c_str();
 
@@ -638,48 +669,22 @@ static void BM_PCRE2_MultiScenario(benchmark::State& state, const PreparedMultiS
     }
 
     int match_result =
-        pcre2_match_8(prepared.pcre2_.compiled_, reinterpret_cast<PCRE2_SPTR8>(match_start),
-                      match_length, 0, partial_flags, prepared.pcre2_.match_data_, nullptr);
-    benchmark::DoNotOptimize(match_result);
-    ++input_index;
-  }
-}
-
-static void BM_PCRE2_JIT_MultiScenario(benchmark::State& state,
-                                       const PreparedMultiScenario& prepared) {
-  if (!prepared.pcre2_jit_.jit_ready_) {
-    state.SkipWithError(prepared.pcre2_jit_.jit_error_.c_str());
-    return;
-  }
-
-  size_t input_index = 0;
-  for (auto _ : state) {
-    const auto& input = prepared.inputs_[input_index % prepared.inputs_.size()];
-    const uint32_t partial_flags =
-        (prepared.mode_ == ScenarioMode::PartialMatch) ? PCRE2_PARTIAL_SOFT : 0;
-    size_t match_length = input.size();
-    const char* match_start = input.c_str();
-
-    if (prepared.mode_ == ScenarioMode::PartialMatch) {
-      match_length = std::min(prepared.nfa_.longestPath(), input.size());
-      match_start = input.c_str() + (input.size() - match_length);
-    }
-
-    int match_result = pcre2_match_8(
-        prepared.pcre2_jit_.compiled_, reinterpret_cast<PCRE2_SPTR8>(match_start), match_length, 0,
-        partial_flags, prepared.pcre2_jit_.match_data_, prepared.pcre2_jit_.match_context_);
+        pcre2_match_8(prepared.pcre2_jit_.compiled_, reinterpret_cast<PCRE2_SPTR8>(match_start),
+                      match_length, 0, effective_partial_flags, prepared.pcre2_jit_.match_data_,
+                      prepared.pcre2_jit_.match_context_);
     benchmark::DoNotOptimize(match_result);
     ++input_index;
   }
 }
 
 static void BM_PCRE2_MultiScenario_PerPatternLoop(benchmark::State& state,
-                                                  const PreparedMultiScenario& prepared) {
+                                                  const PreparedMultiScenario& prepared,
+                                                  uint32_t partial_flags) {
   size_t input_index = 0;
   for (auto _ : state) {
     const auto& input = prepared.inputs_[input_index % prepared.inputs_.size()];
-    const uint32_t partial_flags =
-        (prepared.mode_ == ScenarioMode::PartialMatch) ? PCRE2_PARTIAL_SOFT : 0;
+    const uint32_t effective_partial_flags =
+        (prepared.mode_ == ScenarioMode::PartialMatch) ? partial_flags : 0;
     size_t match_length = input.size();
     const char* match_start = input.c_str();
 
@@ -692,7 +697,7 @@ static void BM_PCRE2_MultiScenario_PerPatternLoop(benchmark::State& state,
     for (auto& per_pattern : prepared.pcre2_per_pattern_) {
       const int match_result =
           pcre2_match_8(per_pattern.compiled_, reinterpret_cast<PCRE2_SPTR8>(match_start),
-                        match_length, 0, partial_flags, per_pattern.match_data_, nullptr);
+                        match_length, 0, effective_partial_flags, per_pattern.match_data_, nullptr);
       final_result = match_result;
       if (prepared.mode_ == ScenarioMode::FullMatch) {
         if (match_result > 0) {
@@ -711,12 +716,13 @@ static void BM_PCRE2_MultiScenario_PerPatternLoop(benchmark::State& state,
 }
 
 static void BM_PCRE2_JIT_MultiScenario_PerPatternLoop(benchmark::State& state,
-                                                      const PreparedMultiScenario& prepared) {
+                                                      const PreparedMultiScenario& prepared,
+                                                      uint32_t partial_flags) {
   size_t input_index = 0;
   for (auto _ : state) {
     const auto& input = prepared.inputs_[input_index % prepared.inputs_.size()];
-    const uint32_t partial_flags =
-        (prepared.mode_ == ScenarioMode::PartialMatch) ? PCRE2_PARTIAL_SOFT : 0;
+    const uint32_t effective_partial_flags =
+        (prepared.mode_ == ScenarioMode::PartialMatch) ? partial_flags : 0;
     size_t match_length = input.size();
     const char* match_start = input.c_str();
 
@@ -734,7 +740,7 @@ static void BM_PCRE2_JIT_MultiScenario_PerPatternLoop(benchmark::State& state,
 
       const int match_result = pcre2_match_8(
           per_pattern_jit.compiled_, reinterpret_cast<PCRE2_SPTR8>(match_start), match_length, 0,
-          partial_flags, per_pattern_jit.match_data_, per_pattern_jit.match_context_);
+          effective_partial_flags, per_pattern_jit.match_data_, per_pattern_jit.match_context_);
       final_result = match_result;
       if (prepared.mode_ == ScenarioMode::FullMatch) {
         if (match_result > 0) {
@@ -782,12 +788,16 @@ public:
         continue;
       }
       ++line_count_;
-      if (line_count_ <= 36) {
+      if (line_count_ <= 24) {
         if (line_count_ % 4 == 0) {
           std::cout << "-----------------------" << std::endl;
         }
+      } else if (line_count_ <= 48) {
+        if ((line_count_ - 24) % 6 == 0) {
+          std::cout << "-----------------------" << std::endl;
+        }
       } else {
-        if ((line_count_ - 36) % 6 == 0) {
+        if ((line_count_ - 48) % 10 == 0) {
           std::cout << "-----------------------" << std::endl;
         }
       }
@@ -818,10 +828,16 @@ int main(int argc, char** argv) {
                                  BM_Sregex_Nfa_PartialScenario, std::cref(prepared));
     benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/Sregex_DFA").c_str(),
                                  BM_Sregex_Dfa_PartialScenario, std::cref(prepared));
-    benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/PCRE2").c_str(),
-                                 BM_PCRE2_PartialScenario, std::cref(prepared));
-    benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/PCRE2_JIT").c_str(),
-                                 BM_PCRE2_JIT_PartialScenario, std::cref(prepared));
+    benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/PCRE2_SOFT").c_str(),
+                                 BM_PCRE2_PartialScenario, std::cref(prepared), PCRE2_PARTIAL_SOFT);
+    benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/PCRE2_HARD").c_str(),
+                                 BM_PCRE2_PartialScenario, std::cref(prepared), PCRE2_PARTIAL_HARD);
+    benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/PCRE2_JIT_SOFT").c_str(),
+                                 BM_PCRE2_JIT_PartialScenario, std::cref(prepared),
+                                 PCRE2_PARTIAL_SOFT);
+    benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/PCRE2_JIT_HARD").c_str(),
+                                 BM_PCRE2_JIT_PartialScenario, std::cref(prepared),
+                                 PCRE2_PARTIAL_HARD);
   }
 
   for (const auto& prepared : preparedMultiScenarios()) {
@@ -829,14 +845,41 @@ int main(int argc, char** argv) {
                                  BM_Sregex_Nfa_MultiScenario, std::cref(prepared));
     benchmark::RegisterBenchmark((prepared.name_ + "/Sregex_DFA").c_str(),
                                  BM_Sregex_Dfa_MultiScenario, std::cref(prepared));
-    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_ALTERNATION").c_str(),
-                                 BM_PCRE2_MultiScenario, std::cref(prepared));
-    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_PER_PATTERN").c_str(),
-                                 BM_PCRE2_MultiScenario_PerPatternLoop, std::cref(prepared));
-    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_JIT_ALTERNATION").c_str(),
-                                 BM_PCRE2_JIT_MultiScenario, std::cref(prepared));
-    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_JIT_PER_PATTERN").c_str(),
-                                 BM_PCRE2_JIT_MultiScenario_PerPatternLoop, std::cref(prepared));
+
+    if (prepared.mode_ == ScenarioMode::FullMatch) {
+      benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_ALTERNATION").c_str(),
+                                   BM_PCRE2_MultiScenario, std::cref(prepared), 0);
+      benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_PER_PATTERN").c_str(),
+                                   BM_PCRE2_MultiScenario_PerPatternLoop, std::cref(prepared), 0);
+      benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_JIT_ALTERNATION").c_str(),
+                                   BM_PCRE2_JIT_MultiScenario, std::cref(prepared), 0);
+      benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_JIT_PER_PATTERN").c_str(),
+                                   BM_PCRE2_JIT_MultiScenario_PerPatternLoop, std::cref(prepared), 0);
+      continue;
+    }
+
+    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_ALTERNATION_SOFT").c_str(),
+                                 BM_PCRE2_MultiScenario, std::cref(prepared), PCRE2_PARTIAL_SOFT);
+    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_ALTERNATION_HARD").c_str(),
+                                 BM_PCRE2_MultiScenario, std::cref(prepared), PCRE2_PARTIAL_HARD);
+    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_PER_PATTERN_SOFT").c_str(),
+                                 BM_PCRE2_MultiScenario_PerPatternLoop, std::cref(prepared),
+                                 PCRE2_PARTIAL_SOFT);
+    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_PER_PATTERN_HARD").c_str(),
+                                 BM_PCRE2_MultiScenario_PerPatternLoop, std::cref(prepared),
+                                 PCRE2_PARTIAL_HARD);
+    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_JIT_ALTERNATION_SOFT").c_str(),
+                                 BM_PCRE2_JIT_MultiScenario, std::cref(prepared),
+                                 PCRE2_PARTIAL_SOFT);
+    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_JIT_ALTERNATION_HARD").c_str(),
+                                 BM_PCRE2_JIT_MultiScenario, std::cref(prepared),
+                                 PCRE2_PARTIAL_HARD);
+    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_JIT_PER_PATTERN_SOFT").c_str(),
+                                 BM_PCRE2_JIT_MultiScenario_PerPatternLoop, std::cref(prepared),
+                                 PCRE2_PARTIAL_SOFT);
+    benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_JIT_PER_PATTERN_HARD").c_str(),
+                                 BM_PCRE2_JIT_MultiScenario_PerPatternLoop, std::cref(prepared),
+                                 PCRE2_PARTIAL_HARD);
   }
 
   GroupedConsoleReporter reporter;
