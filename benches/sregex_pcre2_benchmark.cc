@@ -13,6 +13,7 @@
 #include <benchmark/benchmark.h>
 #include <pcre2.h>
 
+#include "src/automata/dfa.h"
 #include "src/automata/nfa.h"
 
 namespace {
@@ -93,6 +94,7 @@ struct Pcre2Resources {
 struct PreparedScenario {
   const BenchmarkScenario* scenario_;
   Sregex::Automata::Nfa nfa_;
+  Sregex::Automata::Dfa dfa_;
   Pcre2Resources pcre2_;
   Pcre2Resources pcre2_jit_;
 };
@@ -103,6 +105,7 @@ struct PreparedMultiScenario {
   std::vector<std::string> patterns_;
   std::vector<std::string> inputs_;
   Sregex::Automata::Nfa nfa_;
+  Sregex::Automata::Dfa dfa_;
   Pcre2Resources pcre2_;
   Pcre2Resources pcre2_jit_;
   std::vector<Pcre2Resources> pcre2_per_pattern_;
@@ -274,8 +277,6 @@ std::string buildAlternationPattern(const std::vector<std::string>& patterns) {
 }
 
 const std::vector<PreparedScenario>& preparedScenarios() {
-  const auto& scenarios = benchmarkScenarios();
-
   static const std::vector<PreparedScenario> kPrepared = []() {
     std::vector<PreparedScenario> prepared;
     const auto& all_scenarios = benchmarkScenarios();
@@ -285,8 +286,12 @@ const std::vector<PreparedScenario>& preparedScenarios() {
       PreparedScenario prepared_scenario;
       prepared_scenario.scenario_ = &scenario;
       prepared_scenario.nfa_ = std::move(Sregex::Automata::Nfa(scenario.pattern_));
+      prepared_scenario.dfa_ = std::move(Sregex::Automata::Dfa(scenario.pattern_));
       if (!prepared_scenario.nfa_.ok()) {
         throw std::runtime_error("NFA build failed: " + prepared_scenario.nfa_.err());
+      }
+      if (!prepared_scenario.dfa_.ok()) {
+        throw std::runtime_error("DFA build failed: " + prepared_scenario.dfa_.err());
       }
       prepared_scenario.pcre2_ = buildPcre2(scenario.pattern_, false);
       prepared_scenario.pcre2_jit_ = buildPcre2(scenario.pattern_, true);
@@ -295,6 +300,9 @@ const std::vector<PreparedScenario>& preparedScenarios() {
       if (scenario.mode_ == ScenarioMode::FullMatch) {
         if (!prepared_scenario.nfa_.isMatch(scenario.input_)) {
           throw std::runtime_error("NFA did not match the full-match benchmark input");
+        }
+        if (!prepared_scenario.dfa_.isMatch(scenario.input_)) {
+          throw std::runtime_error("DFA did not match the full-match benchmark input");
         }
         const int match_result = pcre2_match_8(
             prepared_scenario.pcre2_.compiled_,
@@ -319,6 +327,10 @@ const std::vector<PreparedScenario>& preparedScenarios() {
       } else {
         if (!prepared_scenario.nfa_.isPartialMatch(scenario.input_)) {
           throw std::runtime_error("NFA did not detect partial match for benchmark input: " +
+                                   scenario.name_);
+        }
+        if (!prepared_scenario.dfa_.isPartialMatch(scenario.input_)) {
+          throw std::runtime_error("DFA did not detect partial match for benchmark input: " +
                                    scenario.name_);
         }
 
@@ -381,8 +393,12 @@ const std::vector<PreparedMultiScenario>& preparedMultiScenarios() {
       full_multi.patterns_ = full_patterns;
       full_multi.inputs_ = full_inputs;
       full_multi.nfa_ = Sregex::Automata::Nfa(std::span<const std::string>(full_patterns));
+      full_multi.dfa_ = Sregex::Automata::Dfa(std::span<const std::string>(full_patterns));
       if (!full_multi.nfa_.ok()) {
         throw std::runtime_error("NFA multi-pattern build failed: " + full_multi.nfa_.err());
+      }
+      if (!full_multi.dfa_.ok()) {
+        throw std::runtime_error("DFA multi-pattern build failed: " + full_multi.dfa_.err());
       }
 
       const std::string full_alternation = buildAlternationPattern(full_patterns);
@@ -398,6 +414,9 @@ const std::vector<PreparedMultiScenario>& preparedMultiScenarios() {
       for (const auto& input : full_multi.inputs_) {
         if (!full_multi.nfa_.isMatch(input)) {
           throw std::runtime_error("NFA multi-pattern full-match verification failed");
+        }
+        if (!full_multi.dfa_.isMatch(input.c_str(), input.size())) {
+          throw std::runtime_error("DFA multi-pattern full-match verification failed");
         }
 
         const int match_result =
@@ -428,9 +447,13 @@ const std::vector<PreparedMultiScenario>& preparedMultiScenarios() {
       partial_multi.patterns_ = partial_patterns;
       partial_multi.inputs_ = partial_inputs;
       partial_multi.nfa_ = Sregex::Automata::Nfa(std::span<const std::string>(partial_patterns));
+      partial_multi.dfa_ = Sregex::Automata::Dfa(std::span<const std::string>(partial_patterns));
       if (!partial_multi.nfa_.ok()) {
         throw std::runtime_error("NFA multi-pattern partial build failed: " +
                                  partial_multi.nfa_.err());
+      }
+      if (!partial_multi.dfa_.ok()) {
+        throw std::runtime_error("DFA multi-pattern partial build failed");
       }
 
       const std::string partial_alternation = buildAlternationPattern(partial_patterns);
@@ -447,6 +470,9 @@ const std::vector<PreparedMultiScenario>& preparedMultiScenarios() {
       for (const auto& input : partial_multi.inputs_) {
         if (!partial_multi.nfa_.isPartialMatch(input)) {
           throw std::runtime_error("NFA multi-pattern partial verification failed");
+        }
+        if (!partial_multi.dfa_.isPartialMatch(input)) {
+          throw std::runtime_error("DFA multi-pattern partial verification failed");
         }
 
         const size_t match_length = std::min(partial_multi.nfa_.longestPath(), input.size());
@@ -490,6 +516,13 @@ static void BM_Sregex_Nfa_Scenario(benchmark::State& state, const PreparedScenar
   }
 }
 
+static void BM_Sregex_Dfa_Scenario(benchmark::State& state, const PreparedScenario& prepared) {
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(prepared.dfa_.isMatch(prepared.scenario_->input_.c_str(),
+                                                   prepared.scenario_->input_.size()));
+  }
+}
+
 static void BM_PCRE2_Scenario(benchmark::State& state, const PreparedScenario& prepared) {
   for (auto _ : state) {
     int match_result = pcre2_match_8(
@@ -520,6 +553,14 @@ static void BM_Sregex_Nfa_PartialScenario(benchmark::State& state,
                                           const PreparedScenario& prepared) {
   for (auto _ : state) {
     benchmark::DoNotOptimize(prepared.nfa_.isPartialMatch(prepared.scenario_->input_.c_str(),
+                                                          prepared.scenario_->input_.size()));
+  }
+}
+
+static void BM_Sregex_Dfa_PartialScenario(benchmark::State& state,
+                                          const PreparedScenario& prepared) {
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(prepared.dfa_.isPartialMatch(prepared.scenario_->input_.c_str(),
                                                           prepared.scenario_->input_.size()));
   }
 }
@@ -564,6 +605,19 @@ static void BM_Sregex_Nfa_MultiScenario(benchmark::State& state,
     const bool matched = (prepared.mode_ == ScenarioMode::FullMatch)
                              ? prepared.nfa_.isMatch(input.c_str(), input.size())
                              : prepared.nfa_.isPartialMatch(input.c_str(), input.size());
+    benchmark::DoNotOptimize(static_cast<int>(matched));
+    ++input_index;
+  }
+}
+
+static void BM_Sregex_Dfa_MultiScenario(benchmark::State& state,
+                                        const PreparedMultiScenario& prepared) {
+  size_t input_index = 0;
+  for (auto _ : state) {
+    const auto& input = prepared.inputs_[input_index % prepared.inputs_.size()];
+    const bool matched = (prepared.mode_ == ScenarioMode::FullMatch)
+                             ? prepared.dfa_.isMatch(input.c_str(), input.size())
+                             : prepared.dfa_.isPartialMatch(input.c_str(), input.size());
     benchmark::DoNotOptimize(static_cast<int>(matched));
     ++input_index;
   }
@@ -728,12 +782,12 @@ public:
         continue;
       }
       ++line_count_;
-      if (line_count_ <= 27) {
-        if (line_count_ % 3 == 0) {
+      if (line_count_ <= 36) {
+        if (line_count_ % 4 == 0) {
           std::cout << "-----------------------" << std::endl;
         }
       } else {
-        if ((line_count_ - 27) % 5 == 0) {
+        if ((line_count_ - 36) % 6 == 0) {
           std::cout << "-----------------------" << std::endl;
         }
       }
@@ -751,6 +805,8 @@ int main(int argc, char** argv) {
     if (prepared.scenario_->mode_ == ScenarioMode::FullMatch) {
       benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/Sregex_NFA").c_str(),
                                    BM_Sregex_Nfa_Scenario, std::cref(prepared));
+      benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/Sregex_DFA").c_str(),
+                                   BM_Sregex_Dfa_Scenario, std::cref(prepared));
       benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/PCRE2").c_str(),
                                    BM_PCRE2_Scenario, std::cref(prepared));
       benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/PCRE2_JIT").c_str(),
@@ -760,6 +816,8 @@ int main(int argc, char** argv) {
 
     benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/Sregex_NFA").c_str(),
                                  BM_Sregex_Nfa_PartialScenario, std::cref(prepared));
+    benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/Sregex_DFA").c_str(),
+                                 BM_Sregex_Dfa_PartialScenario, std::cref(prepared));
     benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/PCRE2").c_str(),
                                  BM_PCRE2_PartialScenario, std::cref(prepared));
     benchmark::RegisterBenchmark((prepared.scenario_->name_ + "/PCRE2_JIT").c_str(),
@@ -769,6 +827,8 @@ int main(int argc, char** argv) {
   for (const auto& prepared : preparedMultiScenarios()) {
     benchmark::RegisterBenchmark((prepared.name_ + "/Sregex_NFA").c_str(),
                                  BM_Sregex_Nfa_MultiScenario, std::cref(prepared));
+    benchmark::RegisterBenchmark((prepared.name_ + "/Sregex_DFA").c_str(),
+                                 BM_Sregex_Dfa_MultiScenario, std::cref(prepared));
     benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_ALTERNATION").c_str(),
                                  BM_PCRE2_MultiScenario, std::cref(prepared));
     benchmark::RegisterBenchmark((prepared.name_ + "/PCRE2_PER_PATTERN").c_str(),
