@@ -51,9 +51,6 @@ protected:
   // Implementation of the isPartialMatch interface
   bool isPartialMatchImpl(const char* input, size_t length) const;
 
-  // Implementation of the longestPath interface
-  size_t longestPathImpl() const;
-
   // Implementation of the toDot interface
   std::string toDotImpl() const;
 

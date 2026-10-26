@@ -26,33 +26,6 @@ namespace Sregex::Automata {
 using NfaTypes = ::testing::Types<Nfa>;
 INSTANTIATE_TYPED_TEST_SUITE_P(NfaTest, CommonAutomataMatchTest, NfaTypes);
 
-TEST(NfaTest, longestPath) {
-  {
-    Nfa nfa("(a|1)+");
-    ASSERT_TRUE(nfa.ok());
-    EXPECT_EQ(nfa.longestPath(), 1);
-  }
-
-  {
-    Nfa nfa("(ab|1234)+");
-    ASSERT_TRUE(nfa.ok());
-    EXPECT_EQ(nfa.longestPath(), 4);
-  }
-
-  {
-    Nfa nfa("(你*|好+|(hello)?|(hi){2,4})+世界");
-    ASSERT_TRUE(nfa.ok());
-    EXPECT_EQ(nfa.longestPath(), 14);
-  }
-
-  {
-    Nfa nfa(
-        "[A-Za-z0-9._%+-]{1,15}@[A-Za-z0-9-]{1,15}([.][A-Za-z0-9-]{1,15}){1,3}[.][A-Za-z]{2,8}");
-    nfa.toDotSvg("1.svg");
-    ASSERT_TRUE(nfa.ok());
-  }
-}
-
 TEST(NfaTest, isPartialMatch) {
   // Quantifier prefix
   {

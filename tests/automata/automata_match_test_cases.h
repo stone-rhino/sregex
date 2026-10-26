@@ -180,7 +180,34 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchWithAlternation) {
   }
 }
 
+TYPED_TEST_P(CommonAutomataMatchTest, LongestPath) {
+  {
+    TypeParam automaton("(a|1)+");
+    ASSERT_TRUE(automaton.ok());
+    EXPECT_EQ(automaton.longestPath(), 1);
+  }
+
+  {
+    TypeParam automaton("(ab|1234)+");
+    ASSERT_TRUE(automaton.ok());
+    EXPECT_EQ(automaton.longestPath(), 4);
+  }
+
+  {
+    TypeParam automaton("(你*|好+|(hello)?|(hi){2,4})+世界");
+    ASSERT_TRUE(automaton.ok());
+    EXPECT_EQ(automaton.longestPath(), 14);
+  }
+
+  {
+    TypeParam automaton(
+        "[A-Za-z0-9._%+-]{1,15}@[A-Za-z0-9-]{1,15}([.][A-Za-z0-9-]{1,15}){1,3}[.][A-Za-z]{2,8}");
+    automaton.toDotSvg("1.svg");
+    ASSERT_TRUE(automaton.ok());
+  }
+}
+
 REGISTER_TYPED_TEST_SUITE_P(CommonAutomataMatchTest, Constructor, IsMatchBasic,
-                            IsMatchWithQuantifiers, IsMatchWithAlternation);
+                            IsMatchWithQuantifiers, IsMatchWithAlternation, LongestPath);
 
 } // namespace Sregex::Automata

@@ -62,9 +62,6 @@ protected:
   // Implementation of the isPartialMatch interface
   bool isPartialMatchImpl(const char* input, size_t length) const;
 
-  // Implementation of the longestPath interface
-  size_t longestPathImpl() const { return longest_path_; }
-
   // Implementation of the toDot interface
   std::string toDotImpl() const;
 
@@ -83,9 +80,6 @@ private:
   // from the given state and position
   bool dfsPartial(StateId state, const char* input, size_t length, std::vector<int8_t>& memo,
                   size_t memo_width) const;
-
-  // Computes the length of the longest path in the NFA starting from the given state
-  int64_t longestPathFrom(StateId state, std::vector<bool>& visited) const;
 
   // Splits overlapping transitions into non-overlapping intervals using the scanline algorithm
   std::vector<std::pair<Transition, std::vector<StateId>>> splitTransitionsWithScanline(
@@ -115,6 +109,5 @@ private:
   std::vector<ClosureCache> epsilon_closure_cache_;
   StateId start_state_;
   StateId accept_state_;
-  size_t longest_path_;
 };
 } // namespace Sregex::Automata

@@ -71,8 +71,6 @@ bool Dfa::isMatchImpl(const char* input, size_t length) const {
 
 bool Dfa::isPartialMatchImpl(const char* input, size_t length) const { throw "Not implemented!"; }
 
-size_t Dfa::longestPathImpl() const { throw "Not implemented!"; }
-
 std::string Dfa::toDotImpl() const {
   std::string dot = "digraph DFA {\n";
 

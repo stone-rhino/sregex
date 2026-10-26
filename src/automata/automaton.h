@@ -87,7 +87,7 @@ public:
   /**
    * Returns the length of the longest(acyclic) path in the automaton's state graph.
    */
-  size_t longestPath() const { return derived().longestPathImpl(); }
+  size_t longestPath() const { return longest_path_; }
 
   /**
    * Converts the automaton to DOT format
@@ -140,5 +140,6 @@ private:
 
 protected:
   std::string err_;
+  size_t longest_path_;
 };
 } // namespace Sregex::Automata

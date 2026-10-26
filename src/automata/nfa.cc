@@ -136,6 +136,7 @@ Dfa Nfa::toDfa() const {
     dfa.states_[i].transitions_ = std::move(dfa_transitions[i]);
   }
   dfa.start_state_ = 0;
+  dfa.longest_path_ = longest_path_;
 
   return dfa;
 }
