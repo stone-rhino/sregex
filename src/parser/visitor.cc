@@ -712,7 +712,15 @@ std::any Visitor::visitMatch_point_reset(Antlr4Gen::PCREParser::Match_point_rese
 }
 
 std::any Visitor::visitQuoting(Antlr4Gen::PCREParser::QuotingContext* ctx) {
-  RETURN_ERROR("unsupported quoting");
+  std::string text = ctx->getText();
+  if (text.size() >= 4 && text.substr(0, 2) == "\\Q" && text.substr(text.size() - 2) == "\\E") {
+    text = text.substr(2, text.size() - 4);
+  } else if (text.size() == 2) {
+    text = text.substr(1, 1);
+  }
+
+  appendLiteral(stack_.top(), text);
+  return {};
 }
 
 std::any Visitor::visitName(Antlr4Gen::PCREParser::NameContext* ctx) {

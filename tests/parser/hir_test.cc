@@ -205,6 +205,34 @@ TEST(HirTest, LiteralKind) {
   EXPECT_EQ(hir->dump(), "lit{你好世界helloworld123\a}");
 }
 
+TEST(HirTest, LiteralKindWithEscape) {
+  {
+    auto result = Hir::parse(R"(\Q.+?*\E)");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<LiteralKind>());
+    EXPECT_EQ(hir->kind.as<LiteralKind>(), ".+?*");
+    EXPECT_EQ(hir->dump(), "lit{.+?*}");
+  }
+
+  {
+    auto result = Hir::parse(R"(\.\+\?\*)");
+    if (!result) {
+      std::cerr << result.error() << std::endl;
+    }
+    ASSERT_TRUE(result.has_value());
+
+    auto hir = std::move(result).value();
+    ASSERT_TRUE(hir->kind.is<LiteralKind>());
+    EXPECT_EQ(hir->kind.as<LiteralKind>(), ".+?*");
+    EXPECT_EQ(hir->dump(), "lit{.+?*}");
+  }
+}
+
 TEST(HirTest, UnicodeClassKind) {
   auto result = Sregex::Parser::Hir::parse("[.一-三0-27-91-6[:alpha:]]");
   if (!result) {
