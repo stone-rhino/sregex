@@ -83,7 +83,7 @@ private:
     bool is_accept_state_ = false;
     std::vector<Transition> transitions_;
 
-    // 128 ASCII characters, each entry is a u16 representing the target state ID
+    // 128 ASCII characters, each entry is a TableStateID representing the target state ID
     using TableStateID = uint32_t;
     constexpr static uint8_t kMaxTableAscii = 128;
     std::array<TableStateID, kMaxTableAscii> transition_table_;
