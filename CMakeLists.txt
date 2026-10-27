@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.14)
 
 option(BUILD_BENCHES "Build benchmark programs" OFF)
 option(BUILD_EXAMPLES "Build example programs" OFF)
-option(BUILD_TESTS "Build test programs" OFF)
+option(BUILD_TESTS "Build unit tests" OFF)
 
 # Append the "benches" feature to VCPKG_MANIFEST_FEATURES if building benchmarks
 if(BUILD_BENCHES)
