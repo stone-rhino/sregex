@@ -9,7 +9,6 @@ target_include_directories(streaming_redaction_with_dfa PRIVATE
 )
 
 target_link_libraries(streaming_redaction_with_dfa PRIVATE
-  automata
-  parser
+  sregex
   antlr4_static
 )

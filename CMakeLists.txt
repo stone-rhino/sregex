@@ -36,3 +36,13 @@ if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
+install(
+  TARGETS sregex
+  DESTINATION lib
+)
+
+install(
+  DIRECTORY src/
+  DESTINATION include/sregex
+  FILES_MATCHING PATTERN "*.h"
+)
