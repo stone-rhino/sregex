@@ -76,7 +76,7 @@ private:
   void buildTransitionsTables();
 
   // Get the next state for the given input character from the current state, if it exists.
-  std::optional<StateId> nextState(StateId current, char input) const;
+  std::optional<StateId> nextState(StateId current, uint8_t input) const;
 
 private:
   struct State {

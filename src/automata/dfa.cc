@@ -526,7 +526,7 @@ void Dfa::buildTransitionsTables() {
   }
 }
 
-std::optional<StateId> Dfa::nextState(StateId current, char input) const {
+std::optional<StateId> Dfa::nextState(StateId current, uint8_t input) const {
   const State& state = states_[current];
 
   if (input < State::kMaxTableAscii) {
