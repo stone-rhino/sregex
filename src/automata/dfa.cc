@@ -56,7 +56,7 @@ bool Dfa::isMatchImpl(const char* input, size_t length) const {
       std::optional<StateId> next = nextState(current_state, current_input[i]);
       if (next.has_value()) {
         current_state = next.value();
-        if (states_[current_state].is_accept_state_) {
+        if (states_[current_state].isAcceptState()) {
           return true;
         }
       } else {
@@ -68,14 +68,19 @@ bool Dfa::isMatchImpl(const char* input, size_t length) const {
   return false;
 }
 
-bool Dfa::isPartialMatchImpl(const char* input, size_t length) const {
+bool Dfa::isPartialMatchImpl(const char* input, size_t length, bool is_soft) const {
   size_t match_length = std::min(longest_path_, length);
   if (match_length == 0) {
     return false;
   }
   const char* match_start = input + (length - match_length);
 
-  enum class RunOutcome : uint8_t { NoMatch, AcceptReached, FullSuffixWithoutAccept };
+  enum class RunOutcome : uint8_t {
+    NoMatch,
+    AcceptTerminal,
+    AcceptContinuable,
+    FullSuffixWithoutAccept
+  };
   std::vector<RunOutcome> next_outcomes(states_.size(), RunOutcome::NoMatch);
   std::vector<RunOutcome> current_outcomes(states_.size(), RunOutcome::NoMatch);
 
@@ -86,11 +91,17 @@ bool Dfa::isPartialMatchImpl(const char* input, size_t length) const {
     for (StateId sid = 0; sid < states_.size(); ++sid) {
       std::optional<StateId> next = nextState(sid, match_start[pos]);
       if (next.has_value()) {
-        if (states_[next.value()].is_accept_state_) {
-          current_outcomes[sid] = RunOutcome::AcceptReached;
-        } else {
+        switch (states_[next.value()].state_type_) {
+        case State::StateType::AcceptTerminal:
+          current_outcomes[sid] = RunOutcome::AcceptTerminal;
+          break;
+        case State::StateType::AcceptContinuable:
+          current_outcomes[sid] = RunOutcome::AcceptContinuable;
+          break;
+        default:
           current_outcomes[sid] =
               is_last_pos ? RunOutcome::FullSuffixWithoutAccept : next_outcomes[next.value()];
+          break;
         }
       } else {
         current_outcomes[sid] = RunOutcome::NoMatch;
@@ -98,14 +109,17 @@ bool Dfa::isPartialMatchImpl(const char* input, size_t length) const {
     }
 
     const RunOutcome start_outcome = current_outcomes[start_state_];
-    if (start_outcome == RunOutcome::AcceptReached) {
+    switch (start_outcome) {
+    case RunOutcome::AcceptTerminal:
       return false;
-    }
-    if (start_outcome == RunOutcome::FullSuffixWithoutAccept) {
+    case RunOutcome::AcceptContinuable:
+      return !is_soft;
+    case RunOutcome::FullSuffixWithoutAccept:
       return true;
+    default:
+      std::swap(current_outcomes, next_outcomes);
+      break;
     }
-
-    std::swap(current_outcomes, next_outcomes);
   }
 
   return false;
@@ -158,7 +172,7 @@ std::string Dfa::toDotImpl() const {
     const State& state = states_[i];
 
     // Add the state with a double circle if it's an accept state
-    if (state.is_accept_state_) {
+    if (state.isAcceptState()) {
       dot.append(std::format("  {} [shape=doublecircle];\n", i));
     } else {
       dot.append(std::format("  {};\n", i));
@@ -236,7 +250,7 @@ void Dfa::minimize() {
   std::vector<StateId> accept_partition;
   std::vector<StateId> non_accept_partition;
   for (StateId i = 0; i < states_.size(); ++i) {
-    if (states_[i].is_accept_state_) {
+    if (states_[i].isAcceptState()) {
       accept_partition.push_back(i);
     } else {
       non_accept_partition.push_back(i);
@@ -325,7 +339,7 @@ void Dfa::minimize() {
     }
 
     State new_state;
-    new_state.is_accept_state_ = state.is_accept_state_;
+    new_state.state_type_ = state.state_type_;
     new_state.transitions_ = std::move(new_transitions);
     new_states.push_back(std::move(new_state));
     if (start_state_ == representative) {

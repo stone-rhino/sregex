@@ -60,7 +60,7 @@ protected:
   bool isMatchImpl(const char* input, size_t length) const;
 
   // Implementation of the isPartialMatch interface
-  bool isPartialMatchImpl(const char* input, size_t length) const;
+  bool isPartialMatchImpl(const char* input, size_t length, bool is_soft) const;
 
   // Implementation of the toDot interface
   std::string toDotImpl() const;
@@ -77,9 +77,10 @@ private:
   bool dfs(StateId state, const char* input, size_t length) const;
 
   // Performs a depth-first search to check if the NFA partially accepts the input string starting
-  // from the given state and position
+  // from the given state and position. Soft mode suppresses partial results when the current prefix
+  // already matches the automaton, while hard mode keeps that as a valid partial match.
   bool dfsPartial(StateId state, const char* input, size_t length, std::vector<int8_t>& memo,
-                  size_t memo_width) const;
+                  size_t memo_width, bool is_soft) const;
 
   // Splits overlapping transitions into non-overlapping intervals using the scanline algorithm
   std::vector<std::pair<Transition, std::vector<StateId>>> splitTransitionsWithScanline(

@@ -132,7 +132,16 @@ Dfa Nfa::toDfa() const {
   Dfa dfa;
   dfa.states_.resize(dfa_transitions.size());
   for (size_t i = 0; i < dfa_transitions.size(); ++i) {
-    dfa.states_[i].is_accept_state_ = accept_ids.contains(i);
+    bool is_accept_state = accept_ids.contains(i);
+    if (is_accept_state) {
+      if (dfa_transitions[i].empty()) {
+        dfa.states_[i].state_type_ = Dfa::State::StateType::AcceptTerminal;
+      } else {
+        dfa.states_[i].state_type_ = Dfa::State::StateType::AcceptContinuable;
+      }
+    } else {
+      dfa.states_[i].state_type_ = Dfa::State::StateType::Normal;
+    }
     dfa.states_[i].transitions_ = std::move(dfa_transitions[i]);
   }
   dfa.start_state_ = 0;
@@ -145,14 +154,15 @@ bool Nfa::isMatchImpl(const char* input, size_t length) const {
   return dfs(start_state_, input, length);
 }
 
-bool Nfa::isPartialMatchImpl(const char* input, size_t length) const {
+bool Nfa::isPartialMatchImpl(const char* input, size_t length, bool is_soft) const {
   size_t match_length = std::min(longest_path_, length);
   const char* match_start = input + (length - match_length);
 
   const size_t memo_width = length + 1;
   std::vector<int8_t> memo(states_.size() * memo_width, -1);
   for (size_t offset = 0; offset < match_length; ++offset) {
-    if (dfsPartial(start_state_, match_start + offset, match_length - offset, memo, memo_width)) {
+    if (dfsPartial(start_state_, match_start + offset, match_length - offset, memo, memo_width,
+                   is_soft)) {
       return true;
     }
   }
@@ -277,15 +287,28 @@ bool Nfa::dfs(StateId state, const char* input, size_t length) const {
 }
 
 bool Nfa::dfsPartial(StateId state, const char* input, size_t length, std::vector<int8_t>& memo,
-                     size_t memo_width) const {
+                     size_t memo_width, bool is_soft) const {
   const size_t memo_index = state * memo_width + length;
   if (memo[memo_index] != -1) {
     return memo[memo_index] == 1;
   }
 
   if (epsilon_closure_cache_[state].has_accept_state_) {
-    memo[memo_index] = 0;
-    return false;
+    const auto& closure_cache = epsilon_closure_cache_[state].closure_;
+    bool has_continuation =
+        std::any_of(closure_cache.begin(), closure_cache.end(), [this](StateId sid) {
+          return !states_[sid].transitions_.empty() || !states_[sid].epsilons_.empty();
+        });
+
+    // A full match already exists for the current prefix. Soft mode rejects it as a partial match,
+    // while hard mode only reports it as partial when the accept state can still continue.
+    if (!has_continuation) {
+      memo[memo_index] = 0;
+      return false;
+    }
+
+    memo[memo_index] = is_soft ? 0 : 1;
+    return !is_soft;
   }
 
   if (length == 0) {
@@ -297,7 +320,7 @@ bool Nfa::dfsPartial(StateId state, const char* input, size_t length, std::vecto
   for (StateId closure_state : closure_cache) {
     for (const auto& transition : states_[closure_state].transitions_) {
       if (transition.matches(input[0])) {
-        if (dfsPartial(transition.target_, input + 1, length - 1, memo, memo_width)) {
+        if (dfsPartial(transition.target_, input + 1, length - 1, memo, memo_width, is_soft)) {
           memo[memo_index] = 1;
           return true;
         }

@@ -69,19 +69,32 @@ public:
    * @param input The input string to check. When performing partial matching, only the last few
    * bytes of the input are considered based on the longestPath.
    * @param length The length of the input string
+   * @param is_soft Indicates whether to perform a soft partial match or a hard partial match.
+   * Defaults to false (hard partial match).
+   *
+   * Soft partial match: If there is a full match available, it will return false for partial match.
+   * Hard partial match: If there is a full match available, but the accept state can still be
+   * reached with additional input, it will return true for partial match.
+   *
+   * Example:
+   *   The pattern is "\d+" and the input is two chunks of digits "123" and "456".
+   *   Soft partial match: The first chunk "123" will return false for partial match.
+   *   Hard partial match: The first chunk "123" will return true for partial match.
    * @return True if the input partially matches the pattern, false otherwise
    *
    * @note This method is overloaded to accept std::string, std::string_view, and C-style strings
    */
-  bool isPartialMatch(const std::string& input) const {
-    return isPartialMatch(input.data(), input.size());
+  bool isPartialMatch(const std::string& input, bool is_soft = false) const {
+    return isPartialMatch(input.data(), input.size(), is_soft);
   }
-  bool isPartialMatch(std::string_view input) const {
-    return isPartialMatch(input.data(), input.size());
+  bool isPartialMatch(std::string_view input, bool is_soft = false) const {
+    return isPartialMatch(input.data(), input.size(), is_soft);
   }
-  bool isPartialMatch(const char* input) const { return isPartialMatch(input, std::strlen(input)); }
-  bool isPartialMatch(const char* input, size_t length) const {
-    return derived().isPartialMatchImpl(input, length);
+  bool isPartialMatch(const char* input, bool is_soft = false) const {
+    return isPartialMatch(input, std::strlen(input), is_soft);
+  }
+  bool isPartialMatch(const char* input, size_t length, bool is_soft = false) const {
+    return derived().isPartialMatchImpl(input, length, is_soft);
   }
 
   /**

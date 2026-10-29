@@ -49,7 +49,7 @@ protected:
   bool isMatchImpl(const char* input, size_t length) const;
 
   // Implementation of the isPartialMatch interface
-  bool isPartialMatchImpl(const char* input, size_t length) const;
+  bool isPartialMatchImpl(const char* input, size_t length, bool is_soft) const;
 
   // Implementation of the toDot interface
   std::string toDotImpl() const;
@@ -80,7 +80,16 @@ private:
 
 private:
   struct State {
-    bool is_accept_state_ = false;
+    enum class StateType : uint8_t {
+      // Not an accept state
+      Normal,
+      // Accept state that has no outgoing transitions
+      AcceptTerminal,
+      // Accept state that has outgoing transitions
+      AcceptContinuable
+    };
+
+    StateType state_type_ = StateType::Normal;
     std::vector<Transition> transitions_;
 
     // 128 ASCII characters, each entry is a TableStateID representing the target state ID
@@ -89,7 +98,7 @@ private:
     std::array<TableStateID, kMaxTableAscii> transition_table_;
 
     State() { transition_table_.fill(std::numeric_limits<TableStateID>::max()); }
-
+    bool isAcceptState() const { return state_type_ != StateType::Normal; }
     void buildTransitionsTable();
   };
 

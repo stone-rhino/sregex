@@ -235,6 +235,13 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsPartialMatch) {
     EXPECT_TRUE(automaton.isPartialMatch("do"));
     EXPECT_TRUE(automaton.isPartialMatch("ele"));
 
+    // Partial match with soft mode (is_soft = true)
+    EXPECT_FALSE(automaton.isPartialMatch("cat", true));
+
+    // Partial match with hard mode (is_soft = false)
+    EXPECT_TRUE(automaton.isPartialMatch("cat"));
+    EXPECT_TRUE(automaton.isPartialMatch("cat", false));
+
     const std::string padded = std::string(64, 'e') + "ele";
     EXPECT_TRUE(automaton.isPartialMatch(padded));
 
