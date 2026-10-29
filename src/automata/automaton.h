@@ -33,14 +33,14 @@ struct MatchInfo;
 template <class Derived> class Automaton {
 public:
   /**
-   * Checks if the NFA is in a valid state (no errors)
+   * Checks if the automaton is in a valid state (no errors)
    *
-   * @return true if the NFA is in a valid state, false otherwise
+   * @return true if the automaton is in a valid state, false otherwise
    */
   bool ok() const { return err_.empty(); }
 
   /**
-   * Returns the error message if the NFA is in an invalid state
+   * Returns the error message if the automaton is in an invalid state
    *
    * @return the error message string
    */
@@ -111,20 +111,20 @@ public:
 
   /**
    * Converts the automaton to DOT format and saves it as an SVG file
-   * @param outputFile The path to the output SVG file
+   * @param output_file The path to the output SVG file
    * @note This method requires Graphviz's dot command to be available in the system's PATH. Use
    * `apt install graphviz` to install it on ubuntu systems.
    */
-  void toDotSvg(const std::string& outputFile) const {
+  void toDotSvg(const std::string& output_file) const {
     std::string dot = toDot();
-    std::string dot_file = outputFile + ".dot";
+    std::string dot_file = output_file + ".dot";
     {
       std::ofstream ofs(dot_file);
       if (ofs) {
         ofs << dot;
       }
     }
-    std::string command = "dot -Tsvg -o " + outputFile + " " + dot_file;
+    std::string command = "dot -Tsvg -o " + output_file + " " + dot_file;
     FILE* pipe = ::popen(command.c_str(), "r");
     if (pipe) {
       ::pclose(pipe);

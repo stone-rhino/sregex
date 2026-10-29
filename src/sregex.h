@@ -37,22 +37,30 @@ public:
 
 public:
   /**
-   * Checks if the NFA is in a valid state (no errors)
+   * Checks if the Sregex instance is in a valid state (no errors)
    *
-   * @return true if the NFA is in a valid state, false otherwise
+   * @return true if the Sregex instance is in a valid state, false otherwise
    */
   bool ok() const;
 
   /**
-   * Returns the error message if the NFA is in an invalid state
+   * Returns the error message if the Sregex instance is in an invalid state
    *
    * @return the error message string
    */
   const std::string& err() const;
 
+  /**
+   * Converts the automaton of the Sregex instance to DOT format and saves it as an SVG file
+   * @param output_file The path to the output SVG file
+   * @note This method requires Graphviz's dot command to be available in the system's PATH. Use
+   * `apt install graphviz` to install it on ubuntu systems.
+   */
+  void toDotSvg(const std::string& output_file) const;
+
 public:
   /**
-   * Checks if the input string matches the automaton's patterns
+   * Checks if the input string matches the Sregex instance's patterns
    *
    * @param input The input string to check
    * @param length The length of the input string
@@ -66,7 +74,7 @@ public:
   bool isMatch(const char* input, size_t length) const;
 
   /**
-   * Checks if the input string partially matches the automaton's patterns
+   * Checks if the input string partially matches the Sregex instance's patterns
    *
    * @param input The input string to check. When performing partial matching, only the last few
    * bytes of the input are considered based on the longestPath.
