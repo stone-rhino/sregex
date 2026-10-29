@@ -140,7 +140,7 @@ cmake --install build/release --prefix=/specified/path
 - Include the sregex headers in your project
 
 ```cpp
-#include <sregex/automata/dfa.h>
+#include <sregex/sregex.h>
 ```
 
 - Link against the sregex library
@@ -154,16 +154,16 @@ target_link_libraries(your_target_name PRIVATE /specified/path/lib/libsregex.a)
 
 - Use sregex in your project
 
-1. Create a `Sregex::Automata::Dfa` instance once and reuse it for different patterns
+1. Create a `Sregex::Sregex` instance once and reuse it for different patterns
 
 ```cpp
-static Sregex::Automata::Dfa dfa("pattern");
+static Sregex::Sregex sregex("pattern");
 ```
 
-2. Use the Dfa instance for matching
+2. Use the Sregex instance for matching
 
 ```cpp
-bool match = dfa.isPartialMatch("input string");
+bool match = sregex.isPartialMatch("input string");
 ```
 
 Please refer to the [example](examples/streaming_redaction_with_dfa.cc) for usage details.

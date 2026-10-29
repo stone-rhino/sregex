@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-#include "src/automata/dfa.h"
+#include "src/sregex.h"
 
 namespace {
 // These patterns represent data that should be redacted in logs
@@ -59,9 +59,9 @@ void processStableChunk(std::string&& stable_chunk) {
 }
 
 void processChunk(std::string&& chunk) {
-  const static Sregex::Automata::Dfa dfa(patterns);
-  if (!dfa.ok()) {
-    std::cerr << "Failed to build DFA: " << dfa.err() << '\n';
+  const static Sregex::Sregex sregex(patterns);
+  if (!sregex.ok()) {
+    std::cerr << "Failed to build DFA: " << sregex.err() << '\n';
     return;
   }
 
@@ -72,7 +72,7 @@ void processChunk(std::string&& chunk) {
     buffer.append(chunk);
   }
 
-  const bool is_partial = dfa.isPartialMatch(has_buffered_data ? buffer : chunk);
+  const bool is_partial = sregex.isPartialMatch(has_buffered_data ? buffer : chunk);
   if (!has_buffered_data && is_partial) {
     buffer.append(chunk);
   }

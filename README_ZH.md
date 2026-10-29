@@ -126,7 +126,7 @@ cmake --install build/release --prefix=/specified/path
 - 在现有项目中包含 sregex 头文件
 
 ```cpp
-#include <sregex/automata/dfa.h>
+#include <sregex/sregex.h>
 ```
 
 - 在现有项目中链接 sregex 库
@@ -140,16 +140,16 @@ target_link_libraries(your_target_name PRIVATE /specified/path/lib/libsregex.a)
 
 - 在现有项目中使用 sregex
 
-1. 创建且仅需创建一次（不同模式创建不同实例） Sregex::Automata::Dfa 实例
+1. 创建且仅需创建一次（不同模式创建不同实例） Sregex::Sregex 实例
 
 ```cpp
-static Sregex::Automata::Dfa dfa("pattern");
+static Sregex::Sregex sregex("pattern");
 ```
 
-2. 使用 Dfa 实例进行匹配
+2. 使用 Sregex 实例进行匹配
 
 ```cpp
-bool match = dfa.isPartialMatch("input string");
+bool match = sregex.isPartialMatch("input string");
 ```
 
 请参考 [示例](examples/streaming_redaction_with_dfa.cc) 获取使用示例。

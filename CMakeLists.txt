@@ -42,7 +42,6 @@ install(
 )
 
 install(
-  DIRECTORY src/
+  FILES "src/sregex.h"
   DESTINATION include/sregex
-  FILES_MATCHING PATTERN "*.h"
 )
