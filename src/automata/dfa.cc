@@ -30,17 +30,30 @@
 #include "nfa.h"
 
 namespace Sregex::Automata {
-Dfa::Dfa(const std::string& pattern) {
-  *this = Nfa(pattern).toDfa();
-  normalize();
-  minimize();
-  reorderStatesForLocality();
-  buildTransitionsTables();
-}
+Dfa::Dfa(const std::string& pattern) { *this = Nfa(pattern).toDfa(); }
 
-Dfa::Dfa(const std::span<const std::string>& patterns) {
-  Nfa nfa(patterns);
-  *this = nfa.toDfa();
+Dfa::Dfa(const std::span<const std::string>& patterns) { *this = Nfa(patterns).toDfa(); }
+
+Dfa::Dfa(const std::vector<std::vector<Transition>>& transitions,
+         const std::unordered_set<StateId>& accept_ids, size_t longest_path) {
+  // Create the DFA states from the collected transitions by NFA
+  states_.resize(transitions.size());
+  for (size_t i = 0; i < transitions.size(); ++i) {
+    bool is_accept_state = accept_ids.contains(i);
+    if (is_accept_state) {
+      if (transitions[i].empty()) {
+        states_[i].state_type_ = Dfa::State::StateType::AcceptTerminal;
+      } else {
+        states_[i].state_type_ = Dfa::State::StateType::AcceptContinuable;
+      }
+    } else {
+      states_[i].state_type_ = Dfa::State::StateType::Normal;
+    }
+    states_[i].transitions_ = std::move(transitions[i]);
+  }
+  start_state_ = 0;
+  longest_path_ = longest_path;
+
   normalize();
   minimize();
   reorderStatesForLocality();

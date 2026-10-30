@@ -128,26 +128,7 @@ Dfa Nfa::toDfa() const {
 
   assert(dfa_states.size() == dfa_transitions.size());
 
-  // Create the DFA states from the collected transitions
-  Dfa dfa;
-  dfa.states_.resize(dfa_transitions.size());
-  for (size_t i = 0; i < dfa_transitions.size(); ++i) {
-    bool is_accept_state = accept_ids.contains(i);
-    if (is_accept_state) {
-      if (dfa_transitions[i].empty()) {
-        dfa.states_[i].state_type_ = Dfa::State::StateType::AcceptTerminal;
-      } else {
-        dfa.states_[i].state_type_ = Dfa::State::StateType::AcceptContinuable;
-      }
-    } else {
-      dfa.states_[i].state_type_ = Dfa::State::StateType::Normal;
-    }
-    dfa.states_[i].transitions_ = std::move(dfa_transitions[i]);
-  }
-  dfa.start_state_ = 0;
-  dfa.longest_path_ = longest_path_;
-
-  return dfa;
+  return Dfa(dfa_transitions, accept_ids, longest_path_);
 }
 
 bool Nfa::isMatchImpl(const char* input, size_t length) const {

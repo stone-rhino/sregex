@@ -25,6 +25,7 @@
 #include <limits>
 #include <optional>
 #include <span>
+#include <unordered_set>
 #include <vector>
 
 #include "automaton.h"
@@ -33,12 +34,13 @@
 namespace Sregex::Automata {
 class Dfa : public Automaton<Dfa> {
   friend class Automaton<Dfa>;
-  friend class Nfa;
 
 public:
   Dfa() = default;
   Dfa(const std::string& pattern);
   Dfa(const std::span<const std::string>& patterns);
+  Dfa(const std::vector<std::vector<Transition>>& transitions,
+      const std::unordered_set<StateId>& accept_ids, size_t longest_path);
   Dfa(const Dfa& other) = delete;
   Dfa& operator=(const Dfa& other) = delete;
   Dfa(Dfa&& other) = default;
