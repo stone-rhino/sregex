@@ -137,30 +137,33 @@ After installation, the sregex library and headers can be used via the system in
 cmake --install build/release --prefix=/specified/path
 ```
 
-- Include the sregex headers in your project
+- Find and link against sregex via CMake package
+
+```cmake
+find_package(sregex CONFIG REQUIRED)
+target_link_libraries(your_target_name PRIVATE sregex::sregex)
+```
+
+If sregex is installed to a custom path, add that path to `CMAKE_PREFIX_PATH` when configuring your project:
+
+```shell
+cmake -S . -B build -DCMAKE_PREFIX_PATH=/specified/path
+```
+
+- Use sregex in your project
+1. Include the sregex headers in your project
 
 ```cpp
 #include <sregex/sregex.h>
 ```
 
-- Link against the sregex library
-
-```cmake
-# If sregex is installed in the system path
-target_link_libraries(your_target_name PRIVATE sregex)
-# If sregex is installed in a custom path
-target_link_libraries(your_target_name PRIVATE /specified/path/lib/libsregex.a)
-```
-
-- Use sregex in your project
-
-1. Create a `Sregex::Sregex` instance once and reuse it for different patterns
+2. Create a `Sregex::Sregex` instance once and reuse it for different patterns
 
 ```cpp
 static Sregex::Sregex sregex("pattern");
 ```
 
-2. Use the Sregex instance for matching
+3. Use the Sregex instance for matching
 
 ```cpp
 bool match = sregex.isPartialMatch("input string");

@@ -123,30 +123,33 @@ cmake --install build/release
 cmake --install build/release --prefix=/specified/path
 ```
 
-- 在现有项目中包含 sregex 头文件
+- 通过 CMake 包查找并链接 sregex
+
+```cmake
+find_package(sregex CONFIG REQUIRED)
+target_link_libraries(your_target_name PRIVATE sregex::sregex)
+```
+
+如果 sregex 安装在指定路径，配置项目时将该路径加入 `CMAKE_PREFIX_PATH`：
+
+```shell
+cmake -S . -B build -DCMAKE_PREFIX_PATH=/specified/path
+```
+
+- 在现有项目中使用 sregex
+1. 包含 sregex 头文件
 
 ```cpp
 #include <sregex/sregex.h>
 ```
 
-- 在现有项目中链接 sregex 库
-
-```cmake
-# 如果 sregex 安装在系统路径中
-target_link_libraries(your_target_name PRIVATE sregex)
-# 如果 sregex 安装在指定路径中
-target_link_libraries(your_target_name PRIVATE /specified/path/lib/libsregex.a)
-```
-
-- 在现有项目中使用 sregex
-
-1. 创建且仅需创建一次（不同模式创建不同实例） Sregex::Sregex 实例
+2. 创建且仅需创建一次（不同模式创建不同实例） Sregex::Sregex 实例
 
 ```cpp
 static Sregex::Sregex sregex("pattern");
 ```
 
-2. 使用 Sregex 实例进行匹配
+3. 使用 Sregex 实例进行匹配
 
 ```cpp
 bool match = sregex.isPartialMatch("input string");
