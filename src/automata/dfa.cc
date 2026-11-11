@@ -30,8 +30,8 @@
 #include "nfa.h"
 
 namespace Sregex::Automata {
-Dfa::Dfa(const std::string& pattern) {
-  Nfa nfa = Nfa(pattern);
+Dfa::Dfa(const std::string& pattern, PatternKind kind) {
+  Nfa nfa = Nfa(pattern, kind);
   if (nfa.ok()) {
     *this = nfa.toDfa();
   } else {
@@ -39,8 +39,17 @@ Dfa::Dfa(const std::string& pattern) {
   }
 }
 
-Dfa::Dfa(const std::span<const std::string>& patterns) {
-  Nfa nfa = Nfa(patterns);
+Dfa::Dfa(const std::span<const std::string>& patterns, PatternKind kind) {
+  Nfa nfa = Nfa(patterns, kind);
+  if (nfa.ok()) {
+    *this = nfa.toDfa();
+  } else {
+    err_ = nfa.err();
+  }
+}
+
+Dfa::Dfa(const std::span<const std::string>& patterns, const std::span<const PatternKind>& kinds) {
+  Nfa nfa = Nfa(patterns, kinds);
   if (nfa.ok()) {
     *this = nfa.toDfa();
   } else {

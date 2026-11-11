@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "src/sregex.h"
 
 namespace Sregex::Automata {
 
@@ -35,13 +36,13 @@ TYPED_TEST_SUITE_P(CommonAutomataMatchTest);
 TYPED_TEST_P(CommonAutomataMatchTest, Constructor) {
   std::vector<std::string> patterns = {"(你*|好+|(hello)?|(hi){2,4})+世界", "ab12", "ab34",
                                        "[一-龥]"};
-  TypeParam automaton(patterns);
+  TypeParam automaton(patterns, PatternKind::Regex);
   EXPECT_TRUE(automaton.ok());
 
   // Test empty patterns
   {
     patterns.clear();
-    TypeParam automaton(patterns);
+    TypeParam automaton(patterns, PatternKind::Regex);
     EXPECT_FALSE(automaton.ok());
   }
 }
@@ -49,7 +50,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, Constructor) {
 TYPED_TEST_P(CommonAutomataMatchTest, IsMatchBasic) {
   // Basic matching
   {
-    TypeParam automaton("abc");
+    TypeParam automaton("abc", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isMatch("abc"));
     EXPECT_TRUE(automaton.isMatch("xabc"));
@@ -62,7 +63,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchBasic) {
 
   // Character class
   {
-    TypeParam automaton("[abc]+");
+    TypeParam automaton("[abc]+", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isMatch("abc"));
     EXPECT_TRUE(automaton.isMatch("cba"));
@@ -72,7 +73,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchBasic) {
 
   // Negated character class
   {
-    TypeParam automaton("[^abc]+");
+    TypeParam automaton("[^abc]+", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isMatch("xyz"));
     EXPECT_TRUE(automaton.isMatch("hello"));
@@ -81,7 +82,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchBasic) {
 
   // Ranges
   {
-    TypeParam automaton("[a-z]+");
+    TypeParam automaton("[a-z]+", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isMatch("hello"));
     EXPECT_TRUE(automaton.isMatch("abcxyz"));
@@ -91,7 +92,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchBasic) {
 
   // Hyphens in character classes
   {
-    TypeParam automaton("[0-9-]+");
+    TypeParam automaton("[0-9-]+", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isMatch("12-34"));
     EXPECT_TRUE(automaton.isMatch("0"));
@@ -100,7 +101,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchBasic) {
 
   // Dot character class
   {
-    TypeParam automaton("[.]+");
+    TypeParam automaton("[.]+", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isMatch("..."));
     EXPECT_TRUE(automaton.isMatch("."));
@@ -111,7 +112,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchBasic) {
 TYPED_TEST_P(CommonAutomataMatchTest, IsMatchWithQuantifiers) {
   // Kleene star
   {
-    TypeParam automaton("ab*");
+    TypeParam automaton("ab*", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isMatch("a"));
     EXPECT_TRUE(automaton.isMatch("ab"));
@@ -121,7 +122,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchWithQuantifiers) {
 
   // Kleene plus
   {
-    TypeParam automaton("ab+");
+    TypeParam automaton("ab+", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isMatch("ab"));
     EXPECT_TRUE(automaton.isMatch("abbb"));
@@ -130,7 +131,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchWithQuantifiers) {
 
   // Kleene question mark
   {
-    TypeParam automaton("ab?c");
+    TypeParam automaton("ab?c", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isMatch("ac"));
     EXPECT_TRUE(automaton.isMatch("abc"));
@@ -139,7 +140,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchWithQuantifiers) {
 
   // Exact repetition
   {
-    TypeParam automaton("a{3}");
+    TypeParam automaton("a{3}", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isMatch("aaa"));
     EXPECT_FALSE(automaton.isMatch("aa"));
@@ -148,7 +149,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchWithQuantifiers) {
 
   // At least n repetitions
   {
-    TypeParam automaton("a{2,}");
+    TypeParam automaton("a{2,}", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isMatch("aa"));
     EXPECT_TRUE(automaton.isMatch("aaaaa"));
@@ -157,7 +158,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchWithQuantifiers) {
 
   // Bounded repetition
   {
-    TypeParam automaton("a{2,4}");
+    TypeParam automaton("a{2,4}", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isMatch("aa"));
     EXPECT_TRUE(automaton.isMatch("aaa"));
@@ -168,7 +169,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchWithQuantifiers) {
 
 TYPED_TEST_P(CommonAutomataMatchTest, IsMatchWithAlternation) {
   {
-    TypeParam automaton("cat|dog|elephant");
+    TypeParam automaton("cat|dog|elephant", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isMatch("cat"));
     EXPECT_TRUE(automaton.isMatch("dog"));
@@ -177,7 +178,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchWithAlternation) {
   }
 
   {
-    TypeParam automaton("(ab|cd)e");
+    TypeParam automaton("(ab|cd)e", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isMatch("abe"));
     EXPECT_TRUE(automaton.isMatch("cde"));
@@ -188,26 +189,27 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchWithAlternation) {
 
 TYPED_TEST_P(CommonAutomataMatchTest, LongestPath) {
   {
-    TypeParam automaton("(a|1)+");
+    TypeParam automaton("(a|1)+", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_EQ(automaton.longestPath(), 1);
   }
 
   {
-    TypeParam automaton("(ab|1234)+");
+    TypeParam automaton("(ab|1234)+", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_EQ(automaton.longestPath(), 4);
   }
 
   {
-    TypeParam automaton("(你*|好+|(hello)?|(hi){2,4})+世界");
+    TypeParam automaton("(你*|好+|(hello)?|(hi){2,4})+世界", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_EQ(automaton.longestPath(), 14);
   }
 
   {
     TypeParam automaton(
-        "[A-Za-z0-9._%+-]{1,15}@[A-Za-z0-9-]{1,15}([.][A-Za-z0-9-]{1,15}){1,3}[.][A-Za-z]{2,8}");
+        "[A-Za-z0-9._%+-]{1,15}@[A-Za-z0-9-]{1,15}([.][A-Za-z0-9-]{1,15}){1,3}[.][A-Za-z]{2,8}",
+        PatternKind::Regex);
     automaton.toDotSvg("1.svg");
     ASSERT_TRUE(automaton.ok());
   }
@@ -216,7 +218,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, LongestPath) {
 TYPED_TEST_P(CommonAutomataMatchTest, IsPartialMatch) {
   // Quantifier prefix
   {
-    TypeParam automaton("a{3,5}b");
+    TypeParam automaton("a{3,5}b", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isPartialMatch("a"));
     EXPECT_TRUE(automaton.isPartialMatch("aa"));
@@ -235,7 +237,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsPartialMatch) {
 
   // Alternation prefix
   {
-    TypeParam automaton("(cat|dog|elephant)s?");
+    TypeParam automaton("(cat|dog|elephant)s?", PatternKind::Regex);
     ASSERT_TRUE(automaton.ok());
     EXPECT_TRUE(automaton.isPartialMatch("ca"));
     EXPECT_TRUE(automaton.isPartialMatch("do"));
@@ -258,7 +260,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsPartialMatch) {
 
   // Partial match under anchors
   // {
-  //   TypeParam automaton("^hello world$");
+  //   TypeParam automaton("^hello world$", PatternKind::Regex));
   //   ASSERT_TRUE(automaton.ok());
   //   EXPECT_TRUE(automaton.isPartialMatch("hello"));
   //   EXPECT_TRUE(automaton.isPartialMatch("hello wor"));
@@ -268,7 +270,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsPartialMatch) {
 
   // Assertion prefix
   // {
-  //   TypeParam automaton("foo(?=bar)");
+  //   TypeParam automaton("foo(?=bar)", PatternKind::Regex);
   //   ASSERT_TRUE(automaton.ok());
   //   EXPECT_TRUE(automaton.isPartialMatch("foo"));
   //   EXPECT_TRUE(automaton.isPartialMatch("foob"));
@@ -277,8 +279,25 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsPartialMatch) {
   // }
 }
 
+TYPED_TEST_P(CommonAutomataMatchTest, LiteralMatch) {
+  std::vector<std::string> patterns = {".+", "ab?", "(ab)+"};
+  TypeParam automaton(patterns, PatternKind::Literal);
+  ASSERT_TRUE(automaton.ok());
+
+  EXPECT_TRUE(automaton.isMatch(".+"));
+  EXPECT_TRUE(automaton.isMatch("ab?"));
+  EXPECT_TRUE(automaton.isMatch("(ab)+"));
+  EXPECT_FALSE(automaton.isMatch("c"));
+  EXPECT_FALSE(automaton.isMatch("a"));
+  EXPECT_FALSE(automaton.isMatch("ab"));
+
+  EXPECT_TRUE(automaton.isPartialMatch("."));
+  EXPECT_TRUE(automaton.isPartialMatch("ab"));
+  EXPECT_TRUE(automaton.isPartialMatch("(ab"));
+}
+
 REGISTER_TYPED_TEST_SUITE_P(CommonAutomataMatchTest, Constructor, IsMatchBasic,
                             IsMatchWithQuantifiers, IsMatchWithAlternation, LongestPath,
-                            IsPartialMatch);
+                            IsPartialMatch, LiteralMatch);
 
 } // namespace Sregex::Automata

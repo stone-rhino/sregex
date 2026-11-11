@@ -35,6 +35,7 @@
 
 #include "src/automata/dfa.h"
 #include "src/automata/nfa.h"
+#include "src/sregex.h"
 
 namespace {
 enum class ScenarioMode {
@@ -305,8 +306,10 @@ const std::vector<PreparedScenario>& preparedScenarios() {
       // Prepare the scenario for benchmarking
       PreparedScenario prepared_scenario;
       prepared_scenario.scenario_ = &scenario;
-      prepared_scenario.nfa_ = std::move(Sregex::Automata::Nfa(scenario.pattern_));
-      prepared_scenario.dfa_ = std::move(Sregex::Automata::Dfa(scenario.pattern_));
+      prepared_scenario.nfa_ =
+          std::move(Sregex::Automata::Nfa(scenario.pattern_, Sregex::PatternKind::Regex));
+      prepared_scenario.dfa_ =
+          std::move(Sregex::Automata::Dfa(scenario.pattern_, Sregex::PatternKind::Regex));
       if (!prepared_scenario.nfa_.ok()) {
         throw std::runtime_error("NFA build failed: " + prepared_scenario.nfa_.err());
       }
@@ -412,8 +415,10 @@ const std::vector<PreparedMultiScenario>& preparedMultiScenarios() {
       full_multi.mode_ = ScenarioMode::FullMatch;
       full_multi.patterns_ = full_patterns;
       full_multi.inputs_ = full_inputs;
-      full_multi.nfa_ = Sregex::Automata::Nfa(std::span<const std::string>(full_patterns));
-      full_multi.dfa_ = Sregex::Automata::Dfa(std::span<const std::string>(full_patterns));
+      full_multi.nfa_ = Sregex::Automata::Nfa(std::span<const std::string>(full_patterns),
+                                              Sregex::PatternKind::Regex);
+      full_multi.dfa_ = Sregex::Automata::Dfa(std::span<const std::string>(full_patterns),
+                                              Sregex::PatternKind::Regex);
       if (!full_multi.nfa_.ok()) {
         throw std::runtime_error("NFA multi-pattern build failed: " + full_multi.nfa_.err());
       }
@@ -466,8 +471,10 @@ const std::vector<PreparedMultiScenario>& preparedMultiScenarios() {
       partial_multi.mode_ = ScenarioMode::PartialMatch;
       partial_multi.patterns_ = partial_patterns;
       partial_multi.inputs_ = partial_inputs;
-      partial_multi.nfa_ = Sregex::Automata::Nfa(std::span<const std::string>(partial_patterns));
-      partial_multi.dfa_ = Sregex::Automata::Dfa(std::span<const std::string>(partial_patterns));
+      partial_multi.nfa_ = Sregex::Automata::Nfa(std::span<const std::string>(partial_patterns),
+                                                 Sregex::PatternKind::Regex);
+      partial_multi.dfa_ = Sregex::Automata::Dfa(std::span<const std::string>(partial_patterns),
+                                                 Sregex::PatternKind::Regex);
       if (!partial_multi.nfa_.ok()) {
         throw std::runtime_error("NFA multi-pattern partial build failed: " +
                                  partial_multi.nfa_.err());

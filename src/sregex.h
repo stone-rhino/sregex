@@ -29,10 +29,32 @@ namespace Sregex {
 namespace Automata {
 class Dfa;
 }
+
+enum class PatternKind : uint8_t { Literal, Regex };
+
 class Sregex {
 public:
-  Sregex(const std::string& pattern);
-  Sregex(const std::span<const std::string>& patterns);
+  /**
+   * Constructs a Sregex instance with the given pattern and pattern kind.
+   * @param pattern The pattern string to be used for matching
+   * @param kind The kind of the pattern (Literal or Regex)
+   */
+  Sregex(const std::string& pattern, PatternKind kind = PatternKind::Regex);
+
+  /**
+   * Constructs a Sregex instance with the given patterns and pattern kind.
+   * @param patterns The span of pattern strings to be used for matching
+   * @param kind The kind of the patterns (Literal or Regex)
+   */
+  Sregex(const std::span<const std::string>& patterns, PatternKind kind = PatternKind::Regex);
+
+  /**
+   * Constructs a Sregex instance with the given patterns and their corresponding kinds.
+   * @param patterns The span of pattern strings to be used for matching
+   * @param kinds The span of pattern kinds corresponding to each pattern
+   */
+  Sregex(const std::span<const std::string>& patterns, const std::span<const PatternKind>& kinds);
+
   ~Sregex();
 
 public:

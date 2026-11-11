@@ -34,15 +34,22 @@
 #include "nfa_builder.h"
 
 namespace Sregex::Automata {
-Nfa::Nfa(const std::string& pattern) {
-  *this = NfaBuilder::withPattern(pattern);
+Nfa::Nfa(const std::string& pattern, PatternKind kind) {
+  *this = NfaBuilder::withPattern(pattern, kind);
   if (ok()) {
     buildEpsilonClosureCache();
   }
 }
 
-Nfa::Nfa(const std::span<const std::string>& patterns) {
-  *this = NfaBuilder::withPatterns(patterns);
+Nfa::Nfa(const std::span<const std::string>& patterns, PatternKind kind) {
+  *this = NfaBuilder::withPatterns(patterns, kind);
+  if (ok()) {
+    buildEpsilonClosureCache();
+  }
+}
+
+Nfa::Nfa(const std::span<const std::string>& patterns, const std::span<const PatternKind>& kinds) {
+  *this = NfaBuilder::withPatterns(patterns, kinds);
   if (ok()) {
     buildEpsilonClosureCache();
   }

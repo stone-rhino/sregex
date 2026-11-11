@@ -28,7 +28,9 @@
 #include "src/parser/hir_kind.h"
 #include "transition.h"
 
-namespace Sregex::Automata {
+namespace Sregex {
+enum class PatternKind : uint8_t;
+namespace Automata {
 class Dfa;
 
 /**
@@ -40,8 +42,9 @@ class Nfa : public Automaton<Nfa> {
 
 public:
   Nfa() = default;
-  Nfa(const std::string& pattern);
-  Nfa(const std::span<const std::string>& patterns);
+  Nfa(const std::string& pattern, PatternKind kind);
+  Nfa(const std::span<const std::string>& patterns, PatternKind kind);
+  Nfa(const std::span<const std::string>& patterns, const std::span<const PatternKind>& kinds);
   Nfa(const Nfa& other) = delete;
   Nfa& operator=(const Nfa& other) = delete;
   Nfa(Nfa&& other) = default;
@@ -111,4 +114,5 @@ private:
   StateId start_state_;
   StateId accept_state_;
 };
-} // namespace Sregex::Automata
+} // namespace Automata
+} // namespace Sregex

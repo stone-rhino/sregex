@@ -26,22 +26,30 @@
 
 #include <assert.h>
 
+#include "src/sregex.h"
+
 namespace Sregex::Automata {
 constexpr StateId NEW_DEFAULT_START_STATE = 0;
 constexpr StateId NEW_DEFAULT_ACCEPT_STATE = 1;
 
-Nfa NfaBuilder::withPattern(const std::string& pattern) {
-  auto result = Parser::Hir::parse(pattern);
-  if (!result) {
-    Nfa nfa;
-    nfa.err_ = result.error();
+Nfa NfaBuilder::withPattern(const std::string& pattern, PatternKind kind) {
+  if (kind == PatternKind::Regex) {
+    auto result = Parser::Hir::parse(pattern);
+    if (!result) {
+      Nfa nfa;
+      nfa.err_ = result.error();
+      return nfa;
+    }
+
+    return withHir(*result.value());
+  } else {
+    Nfa nfa = withString(pattern);
+    nfa.longest_path_ = pattern.size();
     return nfa;
   }
-
-  return withHir(*result.value());
 }
 
-Nfa NfaBuilder::withPatterns(const std::span<const std::string>& patterns) {
+Nfa NfaBuilder::withPatterns(const std::span<const std::string>& patterns, PatternKind kind) {
   if (patterns.empty()) {
     Nfa nfa;
     nfa.err_ = "No patterns provided";
@@ -51,7 +59,43 @@ Nfa NfaBuilder::withPatterns(const std::span<const std::string>& patterns) {
   std::vector<Nfa> nfas;
   size_t longest_path = 0;
   for (const auto& pattern : patterns) {
-    auto sub_nfa = withPattern(pattern);
+    auto sub_nfa = withPattern(pattern, kind);
+    if (!sub_nfa.ok()) {
+      Nfa nfa;
+      nfa.err_ = sub_nfa.err();
+      return nfa;
+    }
+    longest_path = std::max(longest_path, sub_nfa.longest_path_);
+    nfas.emplace_back(std::move(sub_nfa));
+  }
+
+  if (nfas.size() == 1) {
+    return std::move(nfas[0]);
+  } else {
+    Nfa nfa = withAlternation(nfas);
+    nfa.longest_path_ = longest_path;
+    return nfa;
+  }
+}
+
+Nfa NfaBuilder::withPatterns(const std::span<const std::string>& patterns,
+                             const std::span<const PatternKind>& kinds) {
+  if (patterns.empty()) {
+    Nfa nfa;
+    nfa.err_ = "No patterns provided";
+    return nfa;
+  }
+
+  if (kinds.size() != patterns.size()) {
+    Nfa nfa;
+    nfa.err_ = "Mismatch between patterns and kinds size";
+    return nfa;
+  }
+
+  std::vector<Nfa> nfas;
+  size_t longest_path = 0;
+  for (size_t i = 0; i < patterns.size(); ++i) {
+    auto sub_nfa = withPattern(patterns[i], kinds[i]);
     if (!sub_nfa.ok()) {
       Nfa nfa;
       nfa.err_ = sub_nfa.err();

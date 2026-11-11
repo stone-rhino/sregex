@@ -31,14 +31,17 @@
 #include "automaton.h"
 #include "transition.h"
 
-namespace Sregex::Automata {
+namespace Sregex {
+enum class PatternKind : uint8_t;
+namespace Automata {
 class Dfa : public Automaton<Dfa> {
   friend class Automaton<Dfa>;
 
 public:
   Dfa() = default;
-  Dfa(const std::string& pattern);
-  Dfa(const std::span<const std::string>& patterns);
+  Dfa(const std::string& pattern, PatternKind kind);
+  Dfa(const std::span<const std::string>& patterns, PatternKind kind);
+  Dfa(const std::span<const std::string>& patterns, const std::span<const PatternKind>& kinds);
   Dfa(const std::vector<std::vector<Transition>>& transitions,
       const std::unordered_set<StateId>& accept_ids, size_t longest_path);
   Dfa(const Dfa& other) = delete;
@@ -125,4 +128,5 @@ private:
   ReorderMetrics bfs_metrics_;
   ReorderMetrics dfs_metrics_;
 };
-} // namespace Sregex::Automata
+} // namespace Automata
+} // namespace Sregex

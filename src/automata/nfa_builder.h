@@ -28,14 +28,18 @@
 #include "nfa.h"
 #include "src/parser/hir.h"
 
-namespace Sregex::Automata {
+namespace Sregex {
+enum class PatternKind : uint8_t;
+namespace Automata {
 /**
  * A Factory class using Thompson's construction to build NFAs from various inputs
  */
 class NfaBuilder {
 public:
-  static Nfa withPattern(const std::string& pattern);
-  static Nfa withPatterns(const std::span<const std::string>& patterns);
+  static Nfa withPattern(const std::string& pattern, PatternKind kind);
+  static Nfa withPatterns(const std::span<const std::string>& patterns, PatternKind kind);
+  static Nfa withPatterns(const std::span<const std::string>& patterns,
+                          const std::span<const PatternKind>& kinds);
   static Nfa withHir(const Parser::Hir& hir);
   static Nfa withAnchor(Parser::AnchorKind anchor);
   static Nfa withChar(char c);
@@ -61,4 +65,5 @@ private:
   static size_t longestPathFromHir(const Parser::Hir& hir);
   static size_t utf8ByteLength(uint32_t codepoint);
 };
-} // namespace Sregex::Automata
+} // namespace Automata
+} // namespace Sregex

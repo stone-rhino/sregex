@@ -23,10 +23,17 @@
 #include "automata/dfa.h"
 
 namespace Sregex {
-Sregex::Sregex(const std::string& pattern) { dfa_ = std::make_unique<Automata::Dfa>(pattern); }
+Sregex::Sregex(const std::string& pattern, PatternKind kind) {
+  dfa_ = std::make_unique<Automata::Dfa>(pattern, kind);
+}
 
-Sregex::Sregex(const std::span<const std::string>& patterns) {
-  dfa_ = std::make_unique<Automata::Dfa>(patterns);
+Sregex::Sregex(const std::span<const std::string>& patterns, PatternKind kind) {
+  dfa_ = std::make_unique<Automata::Dfa>(patterns, kind);
+}
+
+Sregex::Sregex(const std::span<const std::string>& patterns,
+               const std::span<const PatternKind>& kinds) {
+  dfa_ = std::make_unique<Automata::Dfa>(patterns, kinds);
 }
 
 Sregex::~Sregex() = default;
