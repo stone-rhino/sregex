@@ -42,6 +42,12 @@ Nfa NfaBuilder::withPattern(const std::string& pattern) {
 }
 
 Nfa NfaBuilder::withPatterns(const std::span<const std::string>& patterns) {
+  if (patterns.empty()) {
+    Nfa nfa;
+    nfa.err_ = "No patterns provided";
+    return nfa;
+  }
+
   std::vector<Nfa> nfas;
   size_t longest_path = 0;
   for (const auto& pattern : patterns) {

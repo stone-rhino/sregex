@@ -30,9 +30,23 @@
 #include "nfa.h"
 
 namespace Sregex::Automata {
-Dfa::Dfa(const std::string& pattern) { *this = Nfa(pattern).toDfa(); }
+Dfa::Dfa(const std::string& pattern) {
+  Nfa nfa = Nfa(pattern);
+  if (nfa.ok()) {
+    *this = nfa.toDfa();
+  } else {
+    err_ = nfa.err();
+  }
+}
 
-Dfa::Dfa(const std::span<const std::string>& patterns) { *this = Nfa(patterns).toDfa(); }
+Dfa::Dfa(const std::span<const std::string>& patterns) {
+  Nfa nfa = Nfa(patterns);
+  if (nfa.ok()) {
+    *this = nfa.toDfa();
+  } else {
+    err_ = nfa.err();
+  }
+}
 
 Dfa::Dfa(const std::vector<std::vector<Transition>>& transitions,
          const std::unordered_set<StateId>& accept_ids, size_t longest_path) {

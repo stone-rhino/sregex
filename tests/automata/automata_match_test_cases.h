@@ -37,7 +37,13 @@ TYPED_TEST_P(CommonAutomataMatchTest, Constructor) {
                                        "[一-龥]"};
   TypeParam automaton(patterns);
   EXPECT_TRUE(automaton.ok());
-  automaton.toDotSvg("1.svg");
+
+  // Test empty patterns
+  {
+    patterns.clear();
+    TypeParam automaton(patterns);
+    EXPECT_FALSE(automaton.ok());
+  }
 }
 
 TYPED_TEST_P(CommonAutomataMatchTest, IsMatchBasic) {
