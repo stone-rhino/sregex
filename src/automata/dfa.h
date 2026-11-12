@@ -81,9 +81,6 @@ private:
                              ReorderMetrics& metrics) const;
   void applyReorderedMap(const std::vector<StateId>& reordered_map);
 
-  // Build the transition tables for all states based on their transitions.
-  void buildTransitionsTables();
-
   // Get the next state for the given input character from the current state, if it exists.
   std::optional<StateId> nextState(StateId current, uint8_t input) const;
 
@@ -95,30 +92,42 @@ private:
   }
 
 private:
-  struct State {
-    enum class StateType : uint8_t {
-      // Not an accept state
-      Normal,
-      // Accept state that has no outgoing transitions
-      AcceptTerminal,
-      // Accept state that has outgoing transitions
-      AcceptContinuable
-    };
+  enum class StateType : uint8_t {
+    // Not an accept state
+    Normal,
+    // Accept state that has no outgoing transitions
+    AcceptTerminal,
+    // Accept state that has outgoing transitions
+    AcceptContinuable
+  };
 
+  struct PreparedState {
     StateType state_type_ = StateType::Normal;
     std::vector<Transition> transitions_;
-
-    // 128 ASCII characters, each entry is a TableStateID representing the target state ID
-    using TableStateID = uint32_t;
-    constexpr static uint8_t kMaxTableAscii = 128;
-    std::array<TableStateID, kMaxTableAscii> transition_table_;
-
-    State() { transition_table_.fill(std::numeric_limits<TableStateID>::max()); }
     bool isAcceptState() const { return state_type_ != StateType::Normal; }
-    void buildTransitionsTable();
+  };
+
+  struct State {
+    StateType state_type_ = StateType::Normal;
+
+    // Each entry is a TableStateID representing the target state ID
+    using TableStateID = uint32_t;
+    std::array<TableStateID, 256> transition_table_;
+
+    State() = default;
+    State(const PreparedState& prepared) {
+      state_type_ = prepared.state_type_;
+      transition_table_.fill(std::numeric_limits<TableStateID>::max());
+      for (const auto& t : prepared.transitions_) {
+        for (auto c = t.start_; c <= t.end_; ++c) {
+          transition_table_[c] = t.target_;
+        }
+      }
+    }
+    bool isAcceptState() const { return state_type_ != StateType::Normal; }
+
     template <class Archive> void serialize(Archive& ar, const unsigned int version) {
       ar & state_type_;
-      ar & transitions_;
       ar & transition_table_;
     }
   };
@@ -154,6 +163,7 @@ private:
   };
 
 private:
+  std::vector<PreparedState> prepared_states_;
   std::vector<State> states_;
   StateId start_state_;
   ReorderMetrics bfs_metrics_;

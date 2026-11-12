@@ -64,20 +64,20 @@ Dfa::Dfa(const std::span<const std::string>& patterns, const std::span<const Pat
 
 Dfa::Dfa(const std::vector<std::vector<Transition>>& transitions,
          const std::unordered_set<StateId>& accept_ids, size_t longest_path) {
-  // Create the DFA states from the collected transitions by NFA
-  states_.resize(transitions.size());
+  // Create the DFA prepared states from the collected transitions by NFA
+  prepared_states_.resize(transitions.size());
   for (size_t i = 0; i < transitions.size(); ++i) {
     bool is_accept_state = accept_ids.contains(i);
     if (is_accept_state) {
       if (transitions[i].empty()) {
-        states_[i].state_type_ = Dfa::State::StateType::AcceptTerminal;
+        prepared_states_[i].state_type_ = StateType::AcceptTerminal;
       } else {
-        states_[i].state_type_ = Dfa::State::StateType::AcceptContinuable;
+        prepared_states_[i].state_type_ = StateType::AcceptContinuable;
       }
     } else {
-      states_[i].state_type_ = Dfa::State::StateType::Normal;
+      prepared_states_[i].state_type_ = StateType::Normal;
     }
-    states_[i].transitions_ = std::move(transitions[i]);
+    prepared_states_[i].transitions_ = std::move(transitions[i]);
   }
   start_state_ = 0;
   longest_path_ = longest_path;
@@ -85,7 +85,17 @@ Dfa::Dfa(const std::vector<std::vector<Transition>>& transitions,
   normalize();
   minimize();
   reorderStatesForLocality();
-  buildTransitionsTables();
+
+  // Build the DFA states from the prepared states
+  states_.reserve(prepared_states_.size());
+  for (const auto& prepared : prepared_states_) {
+    states_.emplace_back(prepared);
+  }
+
+  // Release the memory held by prepared_states_ after building the DFA states
+  prepared_states_.clear();
+  std::vector<PreparedState> v;
+  prepared_states_.swap(v);
 }
 
 bool Dfa::isMatchImpl(const char* input, size_t length) const {
@@ -133,10 +143,10 @@ bool Dfa::isPartialMatchImpl(const char* input, size_t length, bool is_soft) con
       std::optional<StateId> next = nextState(sid, match_start[pos]);
       if (next.has_value()) {
         switch (states_[next.value()].state_type_) {
-        case State::StateType::AcceptTerminal:
+        case StateType::AcceptTerminal:
           current_outcomes[sid] = RunOutcome::AcceptTerminal;
           break;
-        case State::StateType::AcceptContinuable:
+        case StateType::AcceptContinuable:
           current_outcomes[sid] = RunOutcome::AcceptContinuable;
           break;
         default:
@@ -253,18 +263,7 @@ std::string Dfa::toDotImpl() const {
           label.append(std::format("{}-{}", scalarLabelToken(start), scalarLabelToken(end)));
         }
       }
-      dot.append(std::format("  {} -> {} [label=\"TT: [{}]\"];\n", i, target, label));
-    }
-
-    // Add the transitions for this state
-    for (const auto& t : state.transitions_) {
-      if (t.start_ == t.end_) {
-        dot.append(
-            std::format("  {} -> {} [label=\"{}\"];\n", i, t.target_, scalarLabelToken(t.start_)));
-      } else {
-        dot.append(std::format("  {} -> {} [label=\"{}-{}\"];\n", i, t.target_,
-                               scalarLabelToken(t.start_), scalarLabelToken(t.end_)));
-      }
+      dot.append(std::format("  {} -> {} [label=\"{}\"];\n", i, target, label));
     }
   }
 
@@ -274,7 +273,7 @@ std::string Dfa::toDotImpl() const {
 }
 
 void Dfa::normalize() {
-  for (auto& state : states_) {
+  for (auto& state : prepared_states_) {
     std::sort(state.transitions_.begin(), state.transitions_.end(),
               [](const Transition& a, const Transition& b) {
                 if (a.start_ != b.start_) {
@@ -290,8 +289,8 @@ void Dfa::minimize() {
   std::vector<std::vector<StateId>> partitions;
   std::vector<StateId> accept_partition;
   std::vector<StateId> non_accept_partition;
-  for (StateId i = 0; i < states_.size(); ++i) {
-    if (states_[i].isAcceptState()) {
+  for (StateId i = 0; i < prepared_states_.size(); ++i) {
+    if (prepared_states_[i].isAcceptState()) {
       accept_partition.push_back(i);
     } else {
       non_accept_partition.push_back(i);
@@ -305,7 +304,7 @@ void Dfa::minimize() {
   }
 
   using PartitionID = size_t;
-  std::vector<PartitionID> partition_ids(states_.size(), 0);
+  std::vector<PartitionID> partition_ids(prepared_states_.size(), 0);
   for (PartitionID pid = 0; pid < partitions.size(); ++pid) {
     for (StateId sid : partitions[pid]) {
       partition_ids[sid] = pid;
@@ -320,8 +319,8 @@ void Dfa::minimize() {
     using States = std::vector<StateId>;
 
     std::map<Signature, States> signatures;
-    for (size_t state_id = 0; state_id < states_.size(); ++state_id) {
-      const auto& state = states_[state_id];
+    for (size_t state_id = 0; state_id < prepared_states_.size(); ++state_id) {
+      const auto& state = prepared_states_[state_id];
       // Calculate the signature for the current state.
       // The signature consists of the ranges of the transitions and the partition IDs of their
       // targets.
@@ -355,19 +354,19 @@ void Dfa::minimize() {
   }
 
   // Create a new set of states based on the refined partitions
-  std::vector<State> new_states;
+  std::vector<PreparedState> new_states;
   StateId new_start_state = 0;
   for (PartitionID pid = 0; pid < partitions.size(); ++pid) {
     const auto& part = partitions[pid];
     std::vector<Transition> new_transitions;
     StateId representative = part[0];
-    const State& state = states_[representative];
+    const PreparedState& state = prepared_states_[representative];
     for (const auto& transition : state.transitions_) {
       StateId target_partition = partition_ids[transition.target_];
       new_transitions.push_back({transition.start_, transition.end_, target_partition});
     }
 
-    State new_state;
+    PreparedState new_state;
     new_state.state_type_ = state.state_type_;
     new_state.transitions_ = std::move(new_transitions);
     new_states.push_back(std::move(new_state));
@@ -377,12 +376,12 @@ void Dfa::minimize() {
   }
 
   // Update the DFA
-  states_ = std::move(new_states);
+  prepared_states_ = std::move(new_states);
   start_state_ = new_start_state;
 }
 
 void Dfa::reorderStatesForLocality() {
-  if (states_.size() <= 1) {
+  if (prepared_states_.size() <= 1) {
     return;
   }
 
@@ -398,7 +397,7 @@ void Dfa::reorderStatesForLocality() {
 }
 
 std::vector<StateId> Dfa::buildReorderedMapBFS() const {
-  std::vector<std::optional<StateId>> old_to_new(states_.size());
+  std::vector<std::optional<StateId>> old_to_new(prepared_states_.size());
   std::queue<StateId> queue;
   StateId next_id = 0;
 
@@ -411,7 +410,7 @@ std::vector<StateId> Dfa::buildReorderedMapBFS() const {
     queue.pop();
 
     std::vector<StateId> targets;
-    for (const auto& transition : states_[sid].transitions_) {
+    for (const auto& transition : prepared_states_[sid].transitions_) {
       targets.push_back(transition.target_);
     }
     std::sort(targets.begin(), targets.end());
@@ -441,7 +440,7 @@ std::vector<StateId> Dfa::buildReorderedMapBFS() const {
 }
 
 std::vector<StateId> Dfa::buildReorderedMapDFS() const {
-  std::vector<std::optional<StateId>> old_to_new(states_.size());
+  std::vector<std::optional<StateId>> old_to_new(prepared_states_.size());
   std::stack<StateId> stack;
   StateId next_id = 0;
 
@@ -459,7 +458,7 @@ std::vector<StateId> Dfa::buildReorderedMapDFS() const {
     ++next_id;
 
     std::vector<StateId> targets;
-    for (const auto& transition : states_[sid].transitions_) {
+    for (const auto& transition : prepared_states_[sid].transitions_) {
       targets.push_back(transition.target_);
     }
     std::sort(targets.begin(), targets.end());
@@ -493,8 +492,8 @@ void Dfa::computeReorderMetrics(const std::vector<StateId>& old_to_new,
   std::vector<size_t> deltas;
   std::vector<size_t> start_deltas;
 
-  for (size_t state_id = 0; state_id < states_.size(); ++state_id) {
-    const auto& state = states_[state_id];
+  for (size_t state_id = 0; state_id < prepared_states_.size(); ++state_id) {
+    const auto& state = prepared_states_[state_id];
     StateId src = old_to_new[state_id];
     for (const auto& t : state.transitions_) {
       StateId dst = old_to_new[t.target_];
@@ -551,11 +550,11 @@ void Dfa::computeReorderMetrics(const std::vector<StateId>& old_to_new,
 }
 
 void Dfa::applyReorderedMap(const std::vector<StateId>& old_to_new) {
-  std::vector<State> reordered(states_.size());
+  std::vector<PreparedState> reordered(prepared_states_.size());
 
-  for (StateId old_id = 0; old_id < states_.size(); ++old_id) {
+  for (StateId old_id = 0; old_id < prepared_states_.size(); ++old_id) {
     StateId new_id = old_to_new[old_id];
-    State& old_state = states_[old_id];
+    PreparedState& old_state = prepared_states_[old_id];
     for (auto& t : old_state.transitions_) {
       t.target_ = old_to_new[t.target_];
     }
@@ -563,64 +562,17 @@ void Dfa::applyReorderedMap(const std::vector<StateId>& old_to_new) {
   }
 
   start_state_ = old_to_new[start_state_];
-  states_ = std::move(reordered);
-}
-
-void Dfa::buildTransitionsTables() {
-  for (auto& state : states_) {
-    state.buildTransitionsTable();
-  }
+  prepared_states_ = std::move(reordered);
 }
 
 std::optional<StateId> Dfa::nextState(StateId current, uint8_t input) const {
   const State& state = states_[current];
 
-  if (input < State::kMaxTableAscii) {
-    // Lookup the transition table
-    if (state.transition_table_[input] != std::numeric_limits<State::TableStateID>::max()) {
-      return static_cast<StateId>(state.transition_table_[input]);
-    }
-  } else {
-    for (const auto& t : state.transitions_) {
-      if (t.matches(input)) {
-        return t.target_;
-      }
-    }
+  // Lookup the transition table
+  if (state.transition_table_[input] != std::numeric_limits<State::TableStateID>::max()) {
+    return static_cast<StateId>(state.transition_table_[input]);
   }
 
   return std::nullopt;
-}
-
-void Dfa::State::buildTransitionsTable() {
-  std::vector<Transition> new_transitions;
-  new_transitions.reserve(transitions_.size());
-
-  for (const auto& t : transitions_) {
-    if (t.target_ < std::numeric_limits<TableStateID>::max()) {
-      if (t.start_ < kMaxTableAscii) {
-        if (t.end_ == t.start_) {
-          transition_table_[t.start_] = t.target_;
-        } else {
-          if (t.end_ < kMaxTableAscii) {
-            for (size_t i = t.start_; i <= t.end_; ++i) {
-              transition_table_[i] = t.target_;
-            }
-          } else {
-            for (size_t i = t.start_; i < kMaxTableAscii; ++i) {
-              transition_table_[i] = t.target_;
-            }
-
-            new_transitions.push_back({kMaxTableAscii, t.end_, t.target_});
-          }
-        }
-      } else {
-        new_transitions.push_back(t);
-      }
-    } else {
-      new_transitions.push_back(t);
-    }
-  }
-
-  transitions_ = std::move(new_transitions);
 }
 } // namespace Sregex::Automata
