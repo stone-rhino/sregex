@@ -299,12 +299,6 @@ void Dfa::minimize() {
     partitions.push_back(std::move(non_accept_partition));
   }
 
-  // Only for beautifying dot output
-  std::sort(partitions.begin(), partitions.end(),
-            [](const std::vector<StateId>& a, const std::vector<StateId>& b) {
-              return *std::min_element(a.begin(), a.end()) < *std::min_element(b.begin(), b.end());
-            });
-
   using PartitionID = size_t;
   std::vector<PartitionID> partition_ids(states_.size(), 0);
   for (PartitionID pid = 0; pid < partitions.size(); ++pid) {
@@ -340,16 +334,10 @@ void Dfa::minimize() {
     if (signatures.size() > partitions.size()) {
       // Update the partitions with the new signatures
       partitions.clear();
-      for (const auto& [signature, states] : signatures) {
-        partitions.push_back(states);
+      partitions.reserve(signatures.size());
+      for (auto& [signature, states] : signatures) {
+        partitions.push_back(std::move(states));
       }
-
-      // Only for beautifying dot output
-      std::sort(partitions.begin(), partitions.end(),
-                [](const std::vector<StateId>& a, const std::vector<StateId>& b) {
-                  return *std::min_element(a.begin(), a.end()) <
-                         *std::min_element(b.begin(), b.end());
-                });
 
       for (PartitionID pid = 0; pid < partitions.size(); ++pid) {
         for (StateId sid : partitions[pid]) {
@@ -363,7 +351,7 @@ void Dfa::minimize() {
 
   // Create a new set of states based on the refined partitions
   std::vector<State> new_states;
-  StateId new_start = 0;
+  StateId new_start_state = 0;
   for (PartitionID pid = 0; pid < partitions.size(); ++pid) {
     const auto& part = partitions[pid];
     std::vector<Transition> new_transitions;
@@ -379,13 +367,13 @@ void Dfa::minimize() {
     new_state.transitions_ = std::move(new_transitions);
     new_states.push_back(std::move(new_state));
     if (start_state_ == representative) {
-      new_start = new_states.size() - 1;
+      new_start_state = new_states.size() - 1;
     }
   }
 
   // Update the DFA
   states_ = std::move(new_states);
-  start_state_ = new_start;
+  start_state_ = new_start_state;
 }
 
 void Dfa::reorderStatesForLocality() {
@@ -563,6 +551,9 @@ void Dfa::applyReorderedMap(const std::vector<StateId>& old_to_new) {
   for (StateId old_id = 0; old_id < states_.size(); ++old_id) {
     StateId new_id = old_to_new[old_id];
     State& old_state = states_[old_id];
+    for (auto& t : old_state.transitions_) {
+      t.target_ = old_to_new[t.target_];
+    }
     reordered[new_id] = std::move(old_state);
   }
 
