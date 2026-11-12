@@ -180,6 +180,9 @@ bool Dfa::isPartialMatchImpl(const char* input, size_t length, bool is_soft) con
   return false;
 }
 
+void Dfa::searchImpl(const char* input, size_t length, std::vector<MatchInfo>& matches,
+                     bool anchored) const {}
+
 std::string Dfa::toDotImpl() const {
   std::string dot = "digraph DFA {\n";
 

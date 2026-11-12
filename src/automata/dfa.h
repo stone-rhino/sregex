@@ -60,6 +60,10 @@ protected:
   // Implementation of the isPartialMatch interface
   bool isPartialMatchImpl(const char* input, size_t length, bool is_soft) const;
 
+  // Implementation of the search interface
+  void searchImpl(const char* input, size_t length, std::vector<MatchInfo>& matches,
+                  bool anchored) const;
+
   // Implementation of the toDot interface
   std::string toDotImpl() const;
 

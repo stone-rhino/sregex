@@ -31,8 +31,9 @@
 #include <boost/serialization/array.hpp>
 #include <boost/serialization/vector.hpp>
 
-namespace Sregex::Automata {
+namespace Sregex {
 struct MatchInfo;
+namespace Automata {
 
 template <class Derived> class Automaton {
 public:
@@ -146,6 +147,32 @@ public:
   }
 
   /**
+   * Searches the input string for matches of the automaton's patterns and stores them in the
+   * provided matches vector.
+   *
+   * @param input The input string to search
+   * @param matches A vector to store the found matches
+   * @param anchored Indicates whether to perform anchored search (default is false)
+   *
+   * @note This method is overloaded to accept std::string, std::string_view, and C-style strings
+   */
+  void search(const std::string& input, std::vector<MatchInfo>& matches,
+              bool anchored = false) const {
+    return search(input.data(), input.size(), matches, anchored);
+  }
+  void search(std::string_view input, std::vector<MatchInfo>& matches,
+              bool anchored = false) const {
+    return search(input.data(), input.size(), matches, anchored);
+  }
+  void search(const char* input, std::vector<MatchInfo>& matches, bool anchored = false) const {
+    return search(input, std::strlen(input), matches, anchored);
+  }
+  void search(const char* input, size_t length, std::vector<MatchInfo>& matches,
+              bool anchored = false) const {
+    return derived().searchImpl(input, length, matches, anchored);
+  }
+
+  /**
    * Returns the length of the longest(acyclic) path in the automaton's state graph.
    */
   size_t longestPath() const { return longest_path_; }
@@ -204,4 +231,5 @@ protected:
   std::string err_;
   size_t longest_path_;
 };
-} // namespace Sregex::Automata
+} // namespace Automata
+} // namespace Sregex

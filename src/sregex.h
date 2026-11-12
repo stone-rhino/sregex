@@ -32,6 +32,22 @@ class Dfa;
 
 enum class PatternKind : uint8_t { Literal, Regex };
 
+/**
+ * Match information for a pattern in the input string
+ */
+struct MatchInfo {
+  // The index of the pattern that matched
+  size_t pattern_index_;
+
+  // [start_offset_, end_offset_) range of the match in the input string
+  size_t start_offset_;
+  size_t length_;
+};
+
+/**
+ * A regular expression matcher that supports multiple patterns. It uses DFA (Deterministic Finite
+ * Automaton) internally for efficient matching.
+ */
 class Sregex {
 public:
   /**

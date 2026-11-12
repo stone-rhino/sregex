@@ -163,6 +163,9 @@ bool Nfa::isPartialMatchImpl(const char* input, size_t length, bool is_soft) con
   return false;
 }
 
+void Nfa::searchImpl(const char* input, size_t length, std::vector<MatchInfo>& matches,
+                     bool anchored) const {}
+
 std::string Nfa::toDotImpl() const {
   std::string dot = "digraph NFA {\n";
   dot.append("  rankdir=LR;\n");
