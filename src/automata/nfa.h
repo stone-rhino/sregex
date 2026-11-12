@@ -39,6 +39,7 @@ class Dfa;
 class Nfa : public Automaton<Nfa> {
   friend class NfaBuilder;
   friend class Automaton<Nfa>;
+  friend class boost::serialization::access;
 
 public:
   Nfa() = default;
@@ -49,6 +50,9 @@ public:
   Nfa& operator=(const Nfa& other) = delete;
   Nfa(Nfa&& other) = default;
   Nfa& operator=(Nfa&& other) = default;
+
+  // Avoid the boost serialization function hiding the base class serialize function
+  using Automaton<Nfa>::serialize;
 
 public:
   /**
@@ -89,6 +93,13 @@ private:
   std::vector<std::pair<Transition, std::vector<StateId>>> splitTransitionsWithScanline(
       const std::vector<std::pair<Transition, std::vector<StateId>>>& transitions) const;
 
+  template <class Archive> void serialize(Archive& ar, const unsigned int version) {
+    ar & states_;
+    ar & epsilon_closure_cache_;
+    ar & start_state_;
+    ar & accept_state_;
+  }
+
 private:
   struct State {
     std::vector<Transition> transitions_;
@@ -101,11 +112,19 @@ private:
       transitions_.push_back({start, end, target});
     }
     void addEpsilon(StateId target) { epsilons_.emplace_back(target); }
+    template <class Archive> void serialize(Archive& ar, const unsigned int version) {
+      ar & transitions_;
+      ar & epsilons_;
+    }
   };
 
   struct ClosureCache {
     std::vector<StateId> closure_;
     bool has_accept_state_ = false;
+    template <class Archive> void serialize(Archive& ar, const unsigned int version) {
+      ar & closure_;
+      ar & has_accept_state_;
+    }
   };
 
 private:

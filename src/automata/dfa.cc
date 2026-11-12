@@ -31,6 +31,11 @@
 
 namespace Sregex::Automata {
 Dfa::Dfa(const std::string& pattern, PatternKind kind) {
+  if (pattern.empty()) {
+    err_ = "Pattern is empty";
+    return;
+  }
+
   Nfa nfa = Nfa(pattern, kind);
   if (nfa.ok()) {
     *this = nfa.toDfa();

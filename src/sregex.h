@@ -72,6 +72,23 @@ public:
    */
   const std::string& err() const;
 
+public:
+  /**
+   * Serializes the automaton to a file
+   *
+   * @param filename The name of the file to serialize to
+   * @return True if serialization was successful, false otherwise
+   */
+  bool serialize(const std::string& filename) const;
+
+  /**
+   * Deserializes the automaton from a file
+   *
+   * @param filename The name of the file to deserialize from
+   * @return True if deserialization was successful, false otherwise
+   */
+  bool deserialize(const std::string& filename);
+
   /**
    * Converts the automaton of the Sregex instance to DOT format and saves it as an SVG file
    * @param output_file The path to the output SVG file

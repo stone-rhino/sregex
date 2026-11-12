@@ -35,6 +35,11 @@
 
 namespace Sregex::Automata {
 Nfa::Nfa(const std::string& pattern, PatternKind kind) {
+  if (pattern.empty()) {
+    err_ = "Pattern is empty";
+    return;
+  }
+
   *this = NfaBuilder::withPattern(pattern, kind);
   if (ok()) {
     buildEpsilonClosureCache();

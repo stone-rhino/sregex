@@ -36,6 +36,7 @@ enum class PatternKind : uint8_t;
 namespace Automata {
 class Dfa : public Automaton<Dfa> {
   friend class Automaton<Dfa>;
+  friend class boost::serialization::access;
 
 public:
   Dfa() = default;
@@ -48,6 +49,9 @@ public:
   Dfa& operator=(const Dfa& other) = delete;
   Dfa(Dfa&& other) = default;
   Dfa& operator=(Dfa&& other) = default;
+
+  // Avoid the boost serialization function hiding the base class serialize function
+  using Automaton<Dfa>::serialize;
 
 protected:
   // Implementation of the isMatch interface
@@ -83,6 +87,13 @@ private:
   // Get the next state for the given input character from the current state, if it exists.
   std::optional<StateId> nextState(StateId current, uint8_t input) const;
 
+  template <class Archive> void serialize(Archive& ar, const unsigned int version) {
+    ar & states_;
+    ar & start_state_;
+    ar & bfs_metrics_;
+    ar & dfs_metrics_;
+  }
+
 private:
   struct State {
     enum class StateType : uint8_t {
@@ -105,6 +116,11 @@ private:
     State() { transition_table_.fill(std::numeric_limits<TableStateID>::max()); }
     bool isAcceptState() const { return state_type_ != StateType::Normal; }
     void buildTransitionsTable();
+    template <class Archive> void serialize(Archive& ar, const unsigned int version) {
+      ar & state_type_;
+      ar & transitions_;
+      ar & transition_table_;
+    }
   };
 
   struct ReorderMetrics {
@@ -120,6 +136,21 @@ private:
     double long8_ratio_ = 0;
     size_t start_edge_count_ = 0;
     double start_avg_abs_delta_ = 0;
+
+    template <class Archive> void serialize(Archive& ar, const unsigned int version) {
+      ar & edge_count_;
+      ar & total_abs_delta_;
+      ar & avg_abs_delta_;
+      ar & p50_abs_delta_;
+      ar & p90_abs_delta_;
+      ar & max_abs_delta_;
+      ar & adjacent_ratio_;
+      ar & near2_ratio_;
+      ar & near4_ratio_;
+      ar & long8_ratio_;
+      ar & start_edge_count_;
+      ar & start_avg_abs_delta_;
+    }
   };
 
 private:

@@ -31,5 +31,11 @@ struct Transition {
   StateId target_;
 
   bool matches(unsigned char c) const { return c >= start_ && c <= end_; }
+
+  template <class Archive> void serialize(Archive& ar, const unsigned int version) {
+    ar & start_;
+    ar & end_;
+    ar & target_;
+  }
 };
 } // namespace Sregex::Automata

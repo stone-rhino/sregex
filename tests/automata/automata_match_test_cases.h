@@ -47,6 +47,22 @@ TYPED_TEST_P(CommonAutomataMatchTest, Constructor) {
   }
 }
 
+TYPED_TEST_P(CommonAutomataMatchTest, Serialization) {
+  std::vector<std::string> patterns = {"(你*|好+|(hello)?|(hi){2,4})+世界", "ab12", "ab34",
+                                       "[一-龥]"};
+  TypeParam automaton(patterns, PatternKind::Regex);
+  EXPECT_TRUE(automaton.ok());
+  std::string dot = automaton.toDot();
+
+  const std::string filename = "test_automaton.dat";
+  EXPECT_TRUE(automaton.serialize(filename));
+  TypeParam deserialized_automaton;
+  EXPECT_TRUE(deserialized_automaton.deserialize(filename));
+  EXPECT_TRUE(deserialized_automaton.ok());
+  std::string deserialized_dot = deserialized_automaton.toDot();
+  EXPECT_EQ(dot, deserialized_dot);
+}
+
 TYPED_TEST_P(CommonAutomataMatchTest, IsMatchBasic) {
   // Basic matching
   {
@@ -296,7 +312,7 @@ TYPED_TEST_P(CommonAutomataMatchTest, LiteralMatch) {
   EXPECT_TRUE(automaton.isPartialMatch("(ab"));
 }
 
-REGISTER_TYPED_TEST_SUITE_P(CommonAutomataMatchTest, Constructor, IsMatchBasic,
+REGISTER_TYPED_TEST_SUITE_P(CommonAutomataMatchTest, Constructor, Serialization, IsMatchBasic,
                             IsMatchWithQuantifiers, IsMatchWithAlternation, LongestPath,
                             IsPartialMatch, LiteralMatch);
 

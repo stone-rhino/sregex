@@ -23,9 +23,13 @@
 #include <cstring>
 #include <format>
 #include <fstream>
-#include <optional>
 #include <string>
 #include <string_view>
+
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/serialization/array.hpp>
+#include <boost/serialization/vector.hpp>
 
 namespace Sregex::Automata {
 struct MatchInfo;
@@ -45,6 +49,43 @@ public:
    * @return the error message string
    */
   const std::string& err() const { return err_; }
+
+public:
+  /**
+   * Serializes the automaton to a file
+   *
+   * @param filename The name of the file to serialize to
+   * @return True if serialization was successful, false otherwise
+   */
+  bool serialize(const std::string& filename) const {
+    std::ofstream ofs(filename);
+    if (!ofs.is_open()) {
+      return false;
+    }
+
+    boost::archive::text_oarchive oa(ofs);
+    oa << derived();
+
+    return true;
+  }
+
+  /**
+   * Deserializes the automaton from a file
+   *
+   * @param filename The name of the file to deserialize from
+   * @return True if deserialization was successful, false otherwise
+   */
+  bool deserialize(const std::string& filename) {
+    std::ifstream ifs(filename);
+    if (!ifs.is_open()) {
+      return false;
+    }
+
+    boost::archive::text_iarchive ia(ifs);
+    ia >> derived();
+
+    return true;
+  }
 
 public:
   /**
@@ -150,6 +191,7 @@ protected:
 
 private:
   const Derived& derived() const { return static_cast<const Derived&>(*this); }
+  Derived& derived() { return static_cast<Derived&>(*this); }
 
 protected:
   std::string err_;

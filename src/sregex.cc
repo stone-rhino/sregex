@@ -42,6 +42,10 @@ bool Sregex::ok() const { return dfa_->ok(); }
 
 const std::string& Sregex::err() const { return dfa_->err(); }
 
+bool Sregex::serialize(const std::string& filename) const { return dfa_->serialize(filename); }
+
+bool Sregex::deserialize(const std::string& filename) { return dfa_->deserialize(filename); }
+
 bool Sregex::isMatch(const char* input, size_t length) const {
   return dfa_->isMatch(input, length);
 }

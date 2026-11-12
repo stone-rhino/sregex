@@ -24,5 +24,6 @@ add_custom_command(
 find_package(antlr4-runtime CONFIG REQUIRED)
 
 add_library(parser ${local_source} ${generated_source})
-target_include_directories(parser PRIVATE  ${ANTLR4_INCLUDE_DIR} ${CMAKE_BINARY_DIR}/src/parser)
+target_include_directories(parser PRIVATE ${CMAKE_BINARY_DIR}/src/parser)
+target_link_libraries(parser PUBLIC antlr4_static)
   
