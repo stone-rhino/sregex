@@ -77,6 +77,16 @@ TYPED_TEST_P(CommonAutomataMatchTest, IsMatchBasic) {
     EXPECT_FALSE(automaton.isMatch("abd"));
   }
 
+  // Anchored match
+  {
+    TypeParam automaton("abc", PatternKind::Regex);
+    ASSERT_TRUE(automaton.ok());
+    EXPECT_TRUE(automaton.isMatch("abcx", true));
+    EXPECT_FALSE(automaton.isMatch("xabc", true));
+    EXPECT_TRUE(automaton.isMatch("abcx", false));
+    EXPECT_TRUE(automaton.isMatch("xabc", false));
+  }
+
   // Character class
   {
     TypeParam automaton("[abc]+", PatternKind::Regex);

@@ -55,7 +55,7 @@ public:
 
 protected:
   // Implementation of the isMatch interface
-  bool isMatchImpl(const char* input, size_t length) const;
+  bool isMatchImpl(const char* input, size_t length, bool anchored) const;
 
   // Implementation of the isPartialMatch interface
   bool isPartialMatchImpl(const char* input, size_t length, bool is_soft) const;

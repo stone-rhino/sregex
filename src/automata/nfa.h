@@ -64,7 +64,7 @@ public:
 
 protected:
   // Implementation of the isMatch interface
-  bool isMatchImpl(const char* input, size_t length) const;
+  bool isMatchImpl(const char* input, size_t length, bool anchored) const;
 
   // Implementation of the isPartialMatch interface
   bool isPartialMatchImpl(const char* input, size_t length, bool is_soft) const;
@@ -81,7 +81,7 @@ private:
 
   // Performs a depth-first search to check if the NFA accepts the input string starting from the
   // given state and position
-  bool dfs(StateId state, const char* input, size_t length) const;
+  bool dfs(StateId state, const char* input, size_t length, bool anchored) const;
 
   // Performs a depth-first search to check if the NFA partially accepts the input string starting
   // from the given state and position. Soft mode suppresses partial results when the current prefix

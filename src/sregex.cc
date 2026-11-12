@@ -46,8 +46,8 @@ bool Sregex::serialize(const std::string& filename) const { return dfa_->seriali
 
 bool Sregex::deserialize(const std::string& filename) { return dfa_->deserialize(filename); }
 
-bool Sregex::isMatch(const char* input, size_t length) const {
-  return dfa_->isMatch(input, length);
+bool Sregex::isMatch(const char* input, size_t length, bool anchored) const {
+  return dfa_->isMatch(input, length, anchored);
 }
 
 bool Sregex::isPartialMatch(const char* input, size_t length, bool is_soft) const {

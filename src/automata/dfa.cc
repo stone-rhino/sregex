@@ -98,7 +98,7 @@ Dfa::Dfa(const std::vector<std::vector<Transition>>& transitions,
   prepared_states_.swap(v);
 }
 
-bool Dfa::isMatchImpl(const char* input, size_t length) const {
+bool Dfa::isMatchImpl(const char* input, size_t length, bool anchored) const {
   for (size_t offset = 0; offset < length; ++offset) {
     StateId current_state = start_state_;
     const char* current_input = input + offset;
@@ -113,6 +113,10 @@ bool Dfa::isMatchImpl(const char* input, size_t length) const {
       } else {
         break;
       }
+    }
+
+    if (anchored) {
+      break;
     }
   }
 

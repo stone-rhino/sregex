@@ -143,8 +143,8 @@ Dfa Nfa::toDfa() const {
   return Dfa(dfa_transitions, accept_ids, longest_path_);
 }
 
-bool Nfa::isMatchImpl(const char* input, size_t length) const {
-  return dfs(start_state_, input, length);
+bool Nfa::isMatchImpl(const char* input, size_t length, bool anchored) const {
+  return dfs(start_state_, input, length, anchored);
 }
 
 bool Nfa::isPartialMatchImpl(const char* input, size_t length, bool is_soft) const {
@@ -254,7 +254,7 @@ void Nfa::buildEpsilonClosureCache() {
   }
 }
 
-bool Nfa::dfs(StateId state, const char* input, size_t length) const {
+bool Nfa::dfs(StateId state, const char* input, size_t length, bool anchored) const {
   if (epsilon_closure_cache_[state].has_accept_state_) {
     return true;
   }
@@ -264,14 +264,14 @@ bool Nfa::dfs(StateId state, const char* input, size_t length) const {
     for (StateId state : closure_cache) {
       for (const auto& transition : states_[state].transitions_) {
         if (transition.matches(input[i])) {
-          if (dfs(transition.target_, input + i + 1, length - i - 1)) {
+          if (dfs(transition.target_, input + i + 1, length - i - 1, anchored)) {
             return true;
           }
         }
       }
     }
 
-    if (start_state_ != state) {
+    if (anchored || start_state_ != state) {
       break;
     }
   }

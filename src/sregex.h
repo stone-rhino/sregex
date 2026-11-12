@@ -102,15 +102,22 @@ public:
    * Checks if the input string matches the Sregex instance's patterns
    *
    * @param input The input string to check
+   * @param anchored Indicates whether the match should be anchored at the start. Defaults to false.
    * @param length The length of the input string
    * @return True if the input matches the pattern, false otherwise
    *
    * @note This method is overloaded to accept std::string, std::string_view, and C-style strings
    */
-  bool isMatch(const std::string& input) const { return isMatch(input.data(), input.size()); }
-  bool isMatch(std::string_view input) const { return isMatch(input.data(), input.size()); }
-  bool isMatch(const char* input) const { return isMatch(input, std::strlen(input)); }
-  bool isMatch(const char* input, size_t length) const;
+  bool isMatch(const std::string& input, bool anchored = false) const {
+    return isMatch(input.data(), input.size(), anchored);
+  }
+  bool isMatch(std::string_view input, bool anchored = false) const {
+    return isMatch(input.data(), input.size(), anchored);
+  }
+  bool isMatch(const char* input, bool anchored = false) const {
+    return isMatch(input, std::strlen(input), anchored);
+  }
+  bool isMatch(const char* input, size_t length, bool anchored = false) const;
 
   /**
    * Checks if the input string partially matches the Sregex instance's patterns
