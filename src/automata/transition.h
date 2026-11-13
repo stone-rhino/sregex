@@ -24,6 +24,7 @@
 
 namespace Sregex::Automata {
 using StateId = size_t;
+using PatternId = int64_t;
 
 struct Transition {
   unsigned char start_;

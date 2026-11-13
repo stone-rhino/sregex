@@ -66,6 +66,7 @@ Nfa NfaBuilder::withPatterns(const std::span<const std::string>& patterns, Patte
       return nfa;
     }
     longest_path = std::max(longest_path, sub_nfa.longest_path_);
+    sub_nfa.states_[sub_nfa.accept_state_].setPatternId(nfas.size());
     nfas.emplace_back(std::move(sub_nfa));
   }
 

@@ -87,6 +87,10 @@ private:
   // given state and position
   bool dfs(StateId state, const char* input, size_t length, bool anchored) const;
 
+  // Same as dfs but also collects match information
+  bool dfsWithMatchInfo(StateId state, const char* input, size_t length, bool anchored,
+                        std::vector<MatchInfo>& matches) const;
+
   // Performs a depth-first search to check if the NFA partially accepts the input string starting
   // from the given state and position. Soft mode suppresses partial results when the current prefix
   // already matches the automaton, while hard mode keeps that as a valid partial match.
@@ -108,6 +112,7 @@ private:
   struct State {
     std::vector<Transition> transitions_;
     std::vector<StateId> epsilons_;
+    PatternId pattern_id_ = -1;
     void addTransition(unsigned char c, StateId target) {
       transitions_.push_back(
           {static_cast<unsigned char>(c), static_cast<unsigned char>(c), target});
@@ -116,18 +121,21 @@ private:
       transitions_.push_back({start, end, target});
     }
     void addEpsilon(StateId target) { epsilons_.emplace_back(target); }
+    void setPatternId(PatternId pattern_id) { pattern_id_ = pattern_id; }
     template <class Archive> void serialize(Archive& ar, const unsigned int version) {
       ar & transitions_;
       ar & epsilons_;
+      ar & pattern_id_;
     }
   };
 
   struct ClosureCache {
     std::vector<StateId> closure_;
-    bool has_accept_state_ = false;
+    PatternId pattern_id_ = -1;
+    bool hasAcceptState() const { return pattern_id_ != -1; }
     template <class Archive> void serialize(Archive& ar, const unsigned int version) {
       ar & closure_;
-      ar & has_accept_state_;
+      ar & pattern_id_;
     }
   };
 

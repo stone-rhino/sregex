@@ -32,6 +32,7 @@
 
 #include "dfa.h"
 #include "nfa_builder.h"
+#include "src/sregex.h"
 
 namespace Sregex::Automata {
 Nfa::Nfa(const std::string& pattern, PatternKind kind) {
@@ -42,6 +43,7 @@ Nfa::Nfa(const std::string& pattern, PatternKind kind) {
 
   *this = NfaBuilder::withPattern(pattern, kind);
   if (ok()) {
+    states_[accept_state_].setPatternId(0);
     buildEpsilonClosureCache();
   }
 }
@@ -164,7 +166,9 @@ bool Nfa::isPartialMatchImpl(const char* input, size_t length, bool is_soft) con
 }
 
 void Nfa::searchImpl(const char* input, size_t length, std::vector<MatchInfo>& matches,
-                     bool anchored) const {}
+                     bool anchored) const {
+  dfsWithMatchInfo(start_state_, input, length, anchored, matches);
+}
 
 std::string Nfa::toDotImpl() const {
   std::string dot = "digraph NFA {\n";
@@ -177,11 +181,16 @@ std::string Nfa::toDotImpl() const {
   // Add the states and transitions
   dot.append("  node [shape=circle];\n");
   for (size_t i = 0; i < states_.size(); ++i) {
+    std::string node_label = std::format("{}", i);
+    if (states_[i].pattern_id_ != -1) {
+      node_label += std::format("\\n{}", states_[i].pattern_id_);
+    }
+
     // Add the state with a double circle if it's an accept state
     if (i == accept_state_) {
-      dot.append(std::format("  {} [shape=doublecircle];\n", i));
+      dot.append(std::format("  {} [shape=doublecircle, label=\"{}\"];\n", i, node_label));
     } else {
-      dot.append(std::format("  {};\n", i));
+      dot.append(std::format("  {} [label=\"{}\"];\n", i, node_label));
     }
 
     // Add the transitions for this state
@@ -238,6 +247,14 @@ void Nfa::buildEpsilonClosureCache() {
   for (StateId i = 0; i < states_.size(); ++i) {
     std::vector<StateId> closure = epsilonClosure(i);
 
+    // Set the pattern ID
+    for (StateId sid : closure) {
+      if (states_[sid].pattern_id_ != -1) {
+        epsilon_closure_cache_[i].pattern_id_ = states_[sid].pattern_id_;
+        break;
+      }
+    }
+
     // Remove states that have no outgoing transitions and are not the accept state
     closure.erase(std::remove_if(closure.begin(), closure.end(),
                                  [this](StateId s) {
@@ -245,26 +262,18 @@ void Nfa::buildEpsilonClosureCache() {
                                  }),
                   closure.end());
 
-    bool has_accept_state = false;
-    for (auto s : closure) {
-      if (s == accept_state_) {
-        has_accept_state = true;
-        break;
-      }
-    }
-    epsilon_closure_cache_[i].has_accept_state_ = has_accept_state;
     epsilon_closure_cache_[i].closure_ = std::move(closure);
   }
 }
 
 bool Nfa::dfs(StateId state, const char* input, size_t length, bool anchored) const {
-  if (epsilon_closure_cache_[state].has_accept_state_) {
+  const auto& closure_cache = epsilon_closure_cache_[state];
+  if (closure_cache.hasAcceptState()) {
     return true;
   }
 
-  const std::vector<StateId>& closure_cache = epsilon_closure_cache_[state].closure_;
   for (size_t i = 0; i < length; ++i) {
-    for (StateId state : closure_cache) {
+    for (StateId state : closure_cache.closure_) {
       for (const auto& transition : states_[state].transitions_) {
         if (transition.matches(input[i])) {
           if (dfs(transition.target_, input + i + 1, length - i - 1, anchored)) {
@@ -282,6 +291,42 @@ bool Nfa::dfs(StateId state, const char* input, size_t length, bool anchored) co
   return false;
 }
 
+bool Nfa::dfsWithMatchInfo(StateId state, const char* input, size_t length, bool anchored,
+                           std::vector<MatchInfo>& matches) const {
+  const auto& closure_cache = epsilon_closure_cache_[state];
+  for (size_t i = 0; i < length; ++i) {
+    for (StateId sid : closure_cache.closure_) {
+      for (const auto& transition : states_[sid].transitions_) {
+        if (transition.matches(input[i])) {
+          if (dfsWithMatchInfo(transition.target_, input + i + 1, length - i - 1, anchored,
+                               matches)) {
+            if (!matches.empty()) {
+              auto& last_match_info = matches.back();
+
+              ++last_match_info.length_;
+              last_match_info.start_offset_ = i;
+            }
+
+            if (start_state_ != state) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+
+    if (anchored || start_state_ != state) {
+      break;
+    }
+  }
+
+  if (closure_cache.hasAcceptState()) {
+    matches.emplace_back(closure_cache.pattern_id_, 0, 0);
+  }
+
+  return !matches.empty();
+}
+
 bool Nfa::dfsPartial(StateId state, const char* input, size_t length, std::vector<int8_t>& memo,
                      size_t memo_width, bool is_soft) const {
   const size_t memo_index = state * memo_width + length;
@@ -289,7 +334,7 @@ bool Nfa::dfsPartial(StateId state, const char* input, size_t length, std::vecto
     return memo[memo_index] == 1;
   }
 
-  if (epsilon_closure_cache_[state].has_accept_state_) {
+  if (epsilon_closure_cache_[state].hasAcceptState()) {
     const auto& closure_cache = epsilon_closure_cache_[state].closure_;
     bool has_continuation =
         std::any_of(closure_cache.begin(), closure_cache.end(), [this](StateId sid) {
