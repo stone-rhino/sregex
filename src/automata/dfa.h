@@ -44,7 +44,7 @@ public:
   Dfa(const std::span<const std::string>& patterns, PatternKind kind);
   Dfa(const std::span<const std::string>& patterns, const std::span<const PatternKind>& kinds);
   Dfa(const std::vector<std::vector<Transition>>& transitions,
-      const std::unordered_set<StateId>& accept_ids, size_t longest_path);
+      std::vector<std::vector<PatternId>> pattern_ids, size_t longest_path);
   Dfa(const Dfa& other) = delete;
   Dfa& operator=(const Dfa& other) = delete;
   Dfa(Dfa&& other) = default;
@@ -107,20 +107,23 @@ private:
 
   struct PreparedState {
     StateType state_type_ = StateType::Normal;
+    std::vector<PatternId> pattern_ids_;
     std::vector<Transition> transitions_;
     bool isAcceptState() const { return state_type_ != StateType::Normal; }
   };
 
   struct State {
     StateType state_type_ = StateType::Normal;
+    std::vector<PatternId> pattern_ids_;
 
     // Each entry is a TableStateID representing the target state ID
     using TableStateID = uint32_t;
     std::array<TableStateID, 256> transition_table_;
 
     State() = default;
-    State(const PreparedState& prepared) {
+    State(PreparedState&& prepared) {
       state_type_ = prepared.state_type_;
+      pattern_ids_ = std::move(prepared.pattern_ids_);
       transition_table_.fill(std::numeric_limits<TableStateID>::max());
       for (const auto& t : prepared.transitions_) {
         for (auto c = t.start_; c <= t.end_; ++c) {
@@ -132,6 +135,7 @@ private:
 
     template <class Archive> void serialize(Archive& ar, const unsigned int version) {
       ar & state_type_;
+      ar & pattern_ids_;
       ar & transition_table_;
     }
   };

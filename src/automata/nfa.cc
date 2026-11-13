@@ -74,13 +74,8 @@ Dfa Nfa::toDfa() const {
   };
 
   std::vector<StateId> start_ids = epsilonClosure(start_state_);
-  std::unordered_set<StateId> accept_ids;
-  if (std::any_of(start_ids.begin(), start_ids.end(),
-                  [this](StateId id) { return id == accept_state_; })) {
-    accept_ids.insert(0);
-  }
-
   std::vector<std::vector<StateId>> dfa_states(1, start_ids);
+  std::vector<std::vector<PatternId>> dfa_pattern_ids(1, getPatternIds(start_ids));
   std::vector<std::vector<Transition>> dfa_transitions(1);
   std::unordered_map<std::vector<StateId>, StateId, VecHash> dfa_state_ids;
 
@@ -117,14 +112,9 @@ Dfa Nfa::toDfa() const {
       } else {
         state_id = dfa_states.size();
 
-        // Check if the new DFA state is an accept state
-        if (std::any_of(targets.begin(), targets.end(),
-                        [this](StateId id) { return id == accept_state_; })) {
-          accept_ids.insert(state_id);
-        }
-
         // Add the new DFA state to the list and the mapping
         dfa_states.push_back(targets);
+        dfa_pattern_ids.push_back(getPatternIds(targets));
         dfa_transitions.emplace_back();
 
         dfa_state_ids[targets] = state_id;
@@ -140,9 +130,10 @@ Dfa Nfa::toDfa() const {
     dfa_transitions[dfa_state_id] = std::move(current_transitions);
   }
 
-  assert(dfa_states.size() == dfa_transitions.size());
+  assert(dfa_states.size() == dfa_pattern_ids.size());
+  assert(dfa_pattern_ids.size() == dfa_transitions.size());
 
-  return Dfa(dfa_transitions, accept_ids, longest_path_);
+  return Dfa(dfa_transitions, dfa_pattern_ids, longest_path_);
 }
 
 bool Nfa::isMatchImpl(const char* input, size_t length, bool anchored) const {
@@ -420,5 +411,19 @@ std::vector<std::pair<Transition, std::vector<StateId>>> Nfa::splitTransitionsWi
   }
 
   return merged_intervals;
+}
+
+std::vector<PatternId> Nfa::getPatternIds(const std::vector<StateId>& states) const {
+  std::vector<PatternId> pattern_ids;
+  for (auto sid : states) {
+    if (states_[sid].pattern_id_ != -1) {
+      pattern_ids.push_back(states_[sid].pattern_id_);
+    }
+  }
+
+  std::sort(pattern_ids.begin(), pattern_ids.end());
+  pattern_ids.erase(std::unique(pattern_ids.begin(), pattern_ids.end()), pattern_ids.end());
+
+  return pattern_ids;
 }
 } // namespace Sregex::Automata

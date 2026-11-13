@@ -27,7 +27,10 @@
 #include <queue>
 #include <stack>
 
+#include <boost/unordered/unordered_flat_map.hpp>
+
 #include "nfa.h"
+#include "src/sregex.h"
 
 namespace Sregex::Automata {
 Dfa::Dfa(const std::string& pattern, PatternKind kind) {
@@ -63,11 +66,11 @@ Dfa::Dfa(const std::span<const std::string>& patterns, const std::span<const Pat
 }
 
 Dfa::Dfa(const std::vector<std::vector<Transition>>& transitions,
-         const std::unordered_set<StateId>& accept_ids, size_t longest_path) {
+         std::vector<std::vector<PatternId>> pattern_ids, size_t longest_path) {
   // Create the DFA prepared states from the collected transitions by NFA
   prepared_states_.resize(transitions.size());
   for (size_t i = 0; i < transitions.size(); ++i) {
-    bool is_accept_state = accept_ids.contains(i);
+    bool is_accept_state = !pattern_ids[i].empty();
     if (is_accept_state) {
       if (transitions[i].empty()) {
         prepared_states_[i].state_type_ = StateType::AcceptTerminal;
@@ -78,6 +81,7 @@ Dfa::Dfa(const std::vector<std::vector<Transition>>& transitions,
       prepared_states_[i].state_type_ = StateType::Normal;
     }
     prepared_states_[i].transitions_ = std::move(transitions[i]);
+    prepared_states_[i].pattern_ids_ = std::move(pattern_ids[i]);
   }
   start_state_ = 0;
   longest_path_ = longest_path;
@@ -88,8 +92,8 @@ Dfa::Dfa(const std::vector<std::vector<Transition>>& transitions,
 
   // Build the DFA states from the prepared states
   states_.reserve(prepared_states_.size());
-  for (const auto& prepared : prepared_states_) {
-    states_.emplace_back(prepared);
+  for (auto& prepared : prepared_states_) {
+    states_.emplace_back(std::move(prepared));
   }
 
   // Release the memory held by prepared_states_ after building the DFA states
@@ -181,7 +185,53 @@ bool Dfa::isPartialMatchImpl(const char* input, size_t length, bool is_soft) con
 }
 
 void Dfa::searchImpl(const char* input, size_t length, std::vector<MatchInfo>& matches,
-                     bool anchored) const {}
+                     bool anchored) const {
+  struct PatternOffset {
+    PatternId pattern_id_;
+    size_t start_offset_;
+    bool operator==(const PatternOffset& other) const {
+      return pattern_id_ == other.pattern_id_ && start_offset_ == other.start_offset_;
+    }
+  };
+
+  struct PatternOffsetHash {
+    std::size_t operator()(const PatternOffset& po) const {
+      return std::hash<PatternId>()(po.pattern_id_) << 32 ^ std::hash<size_t>()(po.start_offset_);
+    }
+  };
+
+  boost::unordered_flat_map<PatternOffset, size_t, PatternOffsetHash> matches_map;
+  for (size_t offset = 0; offset < length; ++offset) {
+    StateId current_state = start_state_;
+    const char* current_input = input + offset;
+    size_t remaining_length = length - offset;
+    for (size_t i = 0; i < remaining_length; ++i) {
+      std::optional<StateId> next = nextState(current_state, current_input[i]);
+      if (next.has_value()) {
+        current_state = next.value();
+        if (states_[current_state].isAcceptState()) {
+          const std::vector<PatternId>& pattern_ids = states_[current_state].pattern_ids_;
+          for (PatternId pid : pattern_ids) {
+            PatternOffset po{pid, offset};
+            auto iter = matches_map.find(po);
+            if (iter == matches_map.end()) {
+              matches_map.insert({po, matches.size()});
+              matches.emplace_back(pid, offset, i + 1);
+            } else {
+              matches[iter->second].length_ = i + 1;
+            }
+          }
+        }
+      } else {
+        break;
+      }
+    }
+
+    if (anchored) {
+      break;
+    }
+  }
+}
 
 std::string Dfa::toDotImpl() const {
   std::string dot = "digraph DFA {\n";
@@ -229,11 +279,23 @@ std::string Dfa::toDotImpl() const {
   for (size_t i = 0; i < states_.size(); ++i) {
     const State& state = states_[i];
 
+    std::string node_label = std::format("{}", i);
+    if (state.isAcceptState()) {
+      std::string ids;
+      for (const auto& pid : state.pattern_ids_) {
+        if (!ids.empty()) {
+          ids += ", ";
+        }
+        ids += std::to_string(pid);
+      }
+      node_label += std::format("\\n{}", ids);
+    }
+
     // Add the state with a double circle if it's an accept state
     if (state.isAcceptState()) {
-      dot.append(std::format("  {} [shape=doublecircle];\n", i));
+      dot.append(std::format("  {} [shape=doublecircle, label=\"{}\"];\n", i, node_label));
     } else {
-      dot.append(std::format("  {};\n", i));
+      dot.append(std::format("  {} [label=\"{}\"];\n", i, node_label));
     }
 
     // Group transition table edges by target and merge contiguous ASCII runs.
@@ -292,26 +354,19 @@ void Dfa::normalize() {
 }
 
 void Dfa::minimize() {
-  // Initial partition: accepting and non-accepting states
-  std::vector<std::vector<StateId>> partitions;
-  std::vector<StateId> accept_partition;
-  std::vector<StateId> non_accept_partition;
-  for (StateId i = 0; i < prepared_states_.size(); ++i) {
-    if (prepared_states_[i].isAcceptState()) {
-      accept_partition.push_back(i);
-    } else {
-      non_accept_partition.push_back(i);
-    }
-  }
-  if (!accept_partition.empty()) {
-    partitions.push_back(std::move(accept_partition));
-  }
-  if (!non_accept_partition.empty()) {
-    partitions.push_back(std::move(non_accept_partition));
+  // Collect states into groups based on their output pattern IDs
+  std::map<std::vector<PatternId>, std::vector<StateId>> output_groups;
+  for (StateId sid = 0; sid < prepared_states_.size(); ++sid) {
+    output_groups[prepared_states_[sid].pattern_ids_].push_back(sid);
   }
 
+  // Initial partition based on output pattern IDs
   using PartitionID = size_t;
   std::vector<PartitionID> partition_ids(prepared_states_.size(), 0);
+  std::vector<std::vector<StateId>> partitions;
+  for (auto& [pattern_ids, states] : output_groups) {
+    partitions.push_back(std::move(states));
+  }
   for (PartitionID pid = 0; pid < partitions.size(); ++pid) {
     for (StateId sid : partitions[pid]) {
       partition_ids[sid] = pid;
@@ -322,41 +377,43 @@ void Dfa::minimize() {
   while (1) {
     using RangeStart = uint32_t;
     using RangeEnd = uint32_t;
-    using Signature = std::vector<std::tuple<PartitionID, RangeStart, RangeEnd, PartitionID>>;
+    using Signature = std::vector<std::tuple<RangeStart, RangeEnd, PartitionID>>;
     using States = std::vector<StateId>;
 
-    std::map<Signature, States> signatures;
-    for (size_t state_id = 0; state_id < prepared_states_.size(); ++state_id) {
-      const auto& state = prepared_states_[state_id];
-      // Calculate the signature for the current state.
-      // The signature consists of the ranges of the transitions and the partition IDs of their
-      // targets.
-      Signature signature;
-      signature.reserve(state.transitions_.size());
-      for (const auto& transition : state.transitions_) {
-        signature.emplace_back(partition_ids[state_id], transition.start_, transition.end_,
-                               partition_ids[transition.target_]);
+    std::vector<States> new_partitions;
+    bool refined = false;
+    for (const auto& part : partitions) {
+      std::map<Signature, States> signatures;
+      for (StateId sid : part) {
+        const auto& state = prepared_states_[sid];
+        // Calculate the signature for the current state.
+        // The signature consists of the labels (as ranges) of the transitions and the partition IDs
+        // of their targets.
+        Signature signature;
+        signature.reserve(state.transitions_.size());
+        for (const auto& transition : state.transitions_) {
+          signature.emplace_back(transition.start_, transition.end_,
+                                 partition_ids[transition.target_]);
+        }
+        signatures[signature].push_back(sid);
       }
-      signatures[signature].push_back(state_id);
+      if (signatures.size() > 1) {
+        refined = true;
+      }
+      for (auto& [_, states] : signatures) {
+        new_partitions.push_back(std::move(states));
+      }
     }
 
-    // If there are more signatures than partitions, it means that some states in the same partition
-    // have different signatures and need to be split into smaller partitions
-    if (signatures.size() > partitions.size()) {
-      // Update the partitions with the new signatures
-      partitions.clear();
-      partitions.reserve(signatures.size());
-      for (auto& [signature, states] : signatures) {
-        partitions.push_back(std::move(states));
-      }
-
-      for (PartitionID pid = 0; pid < partitions.size(); ++pid) {
-        for (StateId sid : partitions[pid]) {
-          partition_ids[sid] = pid;
-        }
-      }
-    } else {
+    if (!refined) {
       break;
+    }
+
+    partitions = std::move(new_partitions);
+    for (PartitionID pid = 0; pid < partitions.size(); ++pid) {
+      for (StateId sid : partitions[pid]) {
+        partition_ids[sid] = pid;
+      }
     }
   }
 
@@ -376,6 +433,7 @@ void Dfa::minimize() {
     PreparedState new_state;
     new_state.state_type_ = state.state_type_;
     new_state.transitions_ = std::move(new_transitions);
+    new_state.pattern_ids_ = std::move(state.pattern_ids_);
     new_states.push_back(std::move(new_state));
     if (start_state_ == representative) {
       new_start_state = new_states.size() - 1;

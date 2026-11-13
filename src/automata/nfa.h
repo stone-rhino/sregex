@@ -101,6 +101,9 @@ private:
   std::vector<std::pair<Transition, std::vector<StateId>>> splitTransitionsWithScanline(
       const std::vector<std::pair<Transition, std::vector<StateId>>>& transitions) const;
 
+  // Gets the pattern IDs associated with a set of NFA states
+  std::vector<PatternId> getPatternIds(const std::vector<StateId>& states) const;
+
   template <class Archive> void serialize(Archive& ar, const unsigned int version) {
     ar & states_;
     ar & epsilon_closure_cache_;

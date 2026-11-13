@@ -2,7 +2,8 @@
   "dependencies": [
     "antlr4",
     "gtest",
-    "boost-serialization"
+    "boost-serialization",
+    "boost-unordered"
   ],
   "features": {
     "benches": {
