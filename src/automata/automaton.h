@@ -26,8 +26,8 @@
 #include <string>
 #include <string_view>
 
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
 #include <boost/serialization/array.hpp>
 #include <boost/serialization/vector.hpp>
 
@@ -59,12 +59,12 @@ public:
    * @return True if serialization was successful, false otherwise
    */
   bool serialize(const std::string& filename) const {
-    std::ofstream ofs(filename);
+    std::ofstream ofs(filename, std::ios::binary);
     if (!ofs.is_open()) {
       return false;
     }
 
-    boost::archive::text_oarchive oa(ofs);
+    boost::archive::binary_oarchive oa(ofs);
     oa << derived();
 
     return true;
@@ -77,12 +77,12 @@ public:
    * @return True if deserialization was successful, false otherwise
    */
   bool deserialize(const std::string& filename) {
-    std::ifstream ifs(filename);
+    std::ifstream ifs(filename, std::ios::binary);
     if (!ifs.is_open()) {
       return false;
     }
 
-    boost::archive::text_iarchive ia(ifs);
+    boost::archive::binary_iarchive ia(ifs);
     ia >> derived();
 
     return true;
