@@ -26,8 +26,8 @@
 #include <string>
 #include <string_view>
 
-#include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
 #include <boost/serialization/array.hpp>
 #include <boost/serialization/vector.hpp>
 
@@ -84,6 +84,7 @@ public:
 
     boost::archive::binary_iarchive ia(ifs);
     ia >> derived();
+    err_.clear();
 
     return true;
   }
