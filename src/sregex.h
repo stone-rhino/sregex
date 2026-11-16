@@ -24,6 +24,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <vector>
 
 namespace Sregex {
 namespace Automata {
@@ -166,6 +167,30 @@ public:
     return isPartialMatch(input, std::strlen(input), is_soft);
   }
   bool isPartialMatch(const char* input, size_t length, bool is_soft = false) const;
+
+  /**
+   * Searches the input string for matches of the automaton's patterns and stores them in the
+   * provided matches vector.
+   *
+   * @param input The input string to search
+   * @param matches A vector to store the found matches
+   * @param anchored Indicates whether to perform anchored search (default is false)
+   *
+   * @note This method is overloaded to accept std::string, std::string_view, and C-style strings
+   */
+  void search(const std::string& input, std::vector<MatchInfo>& matches,
+              bool anchored = false) const {
+    return search(input.data(), input.size(), matches, anchored);
+  }
+  void search(std::string_view input, std::vector<MatchInfo>& matches,
+              bool anchored = false) const {
+    return search(input.data(), input.size(), matches, anchored);
+  }
+  void search(const char* input, std::vector<MatchInfo>& matches, bool anchored = false) const {
+    return search(input, std::strlen(input), matches, anchored);
+  }
+  void search(const char* input, size_t length, std::vector<MatchInfo>& matches,
+              bool anchored = false) const;
 
 private:
   std::unique_ptr<Automata::Dfa> dfa_;

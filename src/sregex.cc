@@ -54,4 +54,9 @@ bool Sregex::isPartialMatch(const char* input, size_t length, bool is_soft) cons
   return dfa_->isPartialMatch(input, length, is_soft);
 }
 
+void Sregex::search(const char* input, size_t length, std::vector<MatchInfo>& matches,
+                    bool anchored) const {
+  dfa_->search(input, length, matches, anchored);
+}
+
 } // namespace Sregex
