@@ -20,11 +20,13 @@
  */
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <limits>
 #include <optional>
 #include <span>
+#include <stdexcept>
 #include <unordered_set>
 #include <vector>
 
@@ -89,10 +91,14 @@ private:
   std::optional<StateId> nextState(StateId current, uint8_t input) const;
 
   template <class Archive> void serialize(Archive& ar, const unsigned int version) {
-    ar & states_;
-    ar & start_state_;
-    ar & bfs_metrics_;
-    ar & dfs_metrics_;
+    try {
+      ar & states_;
+      ar & start_state_;
+      ar & bfs_metrics_;
+      ar & dfs_metrics_;
+    } catch (const std::exception& e) {
+      err_ = std::string("DFA serialization error: ") + e.what();
+    }
   }
 
 private:
@@ -136,7 +142,54 @@ private:
     template <class Archive> void serialize(Archive& ar, const unsigned int version) {
       ar & state_type_;
       ar & pattern_ids_;
-      ar & transition_table_;
+      if constexpr (Archive::is_saving::value) {
+        // Compress the transition table using run-length encoding
+        std::vector<uint16_t> run_lengths;
+        std::vector<TableStateID> run_targets;
+        run_lengths.reserve(transition_table_.size());
+        run_targets.reserve(transition_table_.size());
+
+        size_t idx = 0;
+        while (idx < transition_table_.size()) {
+          const TableStateID target = transition_table_[idx];
+          uint16_t run_length = 1;
+          ++idx;
+          while (idx < transition_table_.size() && transition_table_[idx] == target &&
+                 run_length < std::numeric_limits<uint16_t>::max()) {
+            ++run_length;
+            ++idx;
+          }
+          run_lengths.push_back(run_length);
+          run_targets.push_back(target);
+        }
+
+        ar & run_lengths;
+        ar & run_targets;
+      } else {
+        // Decompress the transition table from run-length encoding
+        std::vector<uint16_t> run_lengths;
+        std::vector<TableStateID> run_targets;
+        ar & run_lengths;
+        ar & run_targets;
+
+        assert(run_lengths.size() == run_targets.size());
+        if (run_lengths.size() != run_targets.size()) {
+          throw std::runtime_error("invalid DFA transition table encoding in serialized data");
+        }
+
+        transition_table_.fill(std::numeric_limits<TableStateID>::max());
+        size_t idx = 0;
+        for (size_t i = 0; i < run_lengths.size(); ++i) {
+          const size_t run_length = run_lengths[i];
+          std::fill_n(transition_table_.begin() + idx, run_length, run_targets[i]);
+          idx += run_length;
+        }
+
+        assert(idx == transition_table_.size());
+        if (idx != transition_table_.size()) {
+          throw std::runtime_error("invalid DFA transition table encoding in serialized data");
+        }
+      }
     }
   };
 
