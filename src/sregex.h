@@ -192,6 +192,24 @@ public:
   void search(const char* input, size_t length, std::vector<MatchInfo>& matches,
               bool anchored = false) const;
 
+  /**
+   * Anchored searches for the longest match of the automaton's patterns in the input string
+   *
+   * @param input The input string to search
+   * @param matches A MatchInfo object to store the found match
+   * @return True if a match is found, false otherwise
+   */
+  bool searchLongest(const std::string& input, MatchInfo& matches) const {
+    return searchLongest(input.data(), input.size(), matches);
+  }
+  bool searchLongest(std::string_view input, MatchInfo& matches) const {
+    return searchLongest(input.data(), input.size(), matches);
+  }
+  bool searchLongest(const char* input, MatchInfo& matches) const {
+    return searchLongest(input, std::strlen(input), matches);
+  }
+  bool searchLongest(const char* input, size_t length, MatchInfo& matches) const;
+
 private:
   std::unique_ptr<Automata::Dfa> dfa_;
 };

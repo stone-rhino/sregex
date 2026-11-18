@@ -161,6 +161,19 @@ void Nfa::searchImpl(const char* input, size_t length, std::vector<MatchInfo>& m
   dfsWithMatchInfo(start_state_, input, length, anchored, matches);
 }
 
+bool Nfa::searchLongestImpl(const char* input, size_t length, MatchInfo& matches) const {
+  std::vector<MatchInfo> temp_matches;
+  dfsWithMatchInfo(start_state_, input, length, true, temp_matches);
+  if (!temp_matches.empty()) {
+    // Sort the matches by length in descending order to get the longest match first
+    std::sort(temp_matches.begin(), temp_matches.end(),
+              [](const MatchInfo& a, const MatchInfo& b) { return a.length_ > b.length_; });
+    matches = temp_matches.front();
+    return true;
+  }
+  return false;
+}
+
 std::string Nfa::toDotImpl() const {
   std::string dot = "digraph NFA {\n";
   dot.append("  rankdir=LR;\n");

@@ -200,7 +200,8 @@ void Dfa::searchImpl(const char* input, size_t length, std::vector<MatchInfo>& m
     }
   };
 
-  boost::unordered_flat_map<PatternOffset, size_t, PatternOffsetHash> matches_map;
+  using MatchIndex = size_t;
+  boost::unordered_flat_map<PatternOffset, MatchIndex, PatternOffsetHash> matches_map;
   for (size_t offset = 0; offset < length; ++offset) {
     StateId current_state = start_state_;
     const char* current_input = input + offset;
@@ -231,6 +232,30 @@ void Dfa::searchImpl(const char* input, size_t length, std::vector<MatchInfo>& m
       break;
     }
   }
+}
+
+bool Dfa::searchLongestImpl(const char* input, size_t length, MatchInfo& matches) const {
+  bool found_match = false;
+
+  StateId current_state = start_state_;
+  for (size_t i = 0; i < length; ++i) {
+    std::optional<StateId> next = nextState(current_state, input[i]);
+    if (next.has_value()) {
+      current_state = next.value();
+      if (states_[current_state].isAcceptState()) {
+        found_match = true;
+        const std::vector<PatternId>& pattern_ids = states_[current_state].pattern_ids_;
+        assert(!pattern_ids.empty());
+        matches.pattern_index_ = pattern_ids.front();
+        matches.start_offset_ = 0;
+        matches.length_ = i + 1;
+      }
+    } else {
+      break;
+    }
+  }
+
+  return found_match;
 }
 
 std::string Dfa::toDotImpl() const {

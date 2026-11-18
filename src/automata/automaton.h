@@ -174,6 +174,26 @@ public:
   }
 
   /**
+   * Anchored searches for the longest match of the automaton's patterns in the input string
+   *
+   * @param input The input string to search
+   * @param matches A MatchInfo object to store the found match
+   * @return True if a match is found, false otherwise
+   */
+  bool searchLongest(const std::string& input, MatchInfo& matches) const {
+    return searchLongest(input.data(), input.size(), matches);
+  }
+  bool searchLongest(std::string_view input, MatchInfo& matches) const {
+    return searchLongest(input.data(), input.size(), matches);
+  }
+  bool searchLongest(const char* input, MatchInfo& matches) const {
+    return searchLongest(input, std::strlen(input), matches);
+  }
+  bool searchLongest(const char* input, size_t length, MatchInfo& matches) const {
+    return derived().searchLongestImpl(input, length, matches);
+  }
+
+  /**
    * Returns the length of the longest(acyclic) path in the automaton's state graph.
    */
   size_t longestPath() const { return longest_path_; }

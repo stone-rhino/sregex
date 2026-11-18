@@ -59,4 +59,8 @@ void Sregex::search(const char* input, size_t length, std::vector<MatchInfo>& ma
   dfa_->search(input, length, matches, anchored);
 }
 
+bool Sregex::searchLongest(const char* input, size_t length, MatchInfo& matches) const {
+  return dfa_->searchLongest(input, length, matches);
+}
+
 } // namespace Sregex

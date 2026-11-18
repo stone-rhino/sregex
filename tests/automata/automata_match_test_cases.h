@@ -494,8 +494,40 @@ TYPED_TEST_P(CommonAutomataMatchTest, Search) {
   }
 }
 
+TYPED_TEST_P(CommonAutomataMatchTest, SearchLongest) {
+  // Test the longest match with single pattern
+  TypeParam automaton("hello(world)?", PatternKind::Regex);
+  ASSERT_TRUE(automaton.ok());
+  MatchInfo match;
+  EXPECT_TRUE(automaton.searchLongest("hello", 5, match));
+  EXPECT_EQ(match.pattern_index_, 0);
+  EXPECT_EQ(match.start_offset_, 0);
+  EXPECT_EQ(match.length_, 5);
+  EXPECT_FALSE(automaton.searchLongest("worldhello", 10, match));
+
+  // Test the longest match with multiple patterns
+  {
+    std::vector<std::string> patterns = {"hello(world)?", "world", "hello", ".+"};
+    TypeParam automaton(patterns, PatternKind::Regex);
+    ASSERT_TRUE(automaton.ok());
+    MatchInfo match;
+    EXPECT_TRUE(automaton.searchLongest("hello", 5, match));
+    EXPECT_EQ(match.pattern_index_, 0);
+    EXPECT_EQ(match.start_offset_, 0);
+    EXPECT_EQ(match.length_, 5);
+    EXPECT_TRUE(automaton.searchLongest("worldhello", 10, match));
+    EXPECT_EQ(match.pattern_index_, 3);
+    EXPECT_EQ(match.start_offset_, 0);
+    EXPECT_EQ(match.length_, 10);
+    EXPECT_TRUE(automaton.searchLongest("hi, world", 9, match));
+    EXPECT_EQ(match.pattern_index_, 3);
+    EXPECT_EQ(match.start_offset_, 0);
+    EXPECT_EQ(match.length_, 9);
+  }
+}
+
 REGISTER_TYPED_TEST_SUITE_P(CommonAutomataMatchTest, Constructor, Serialization, IsMatchBasic,
                             IsMatchWithQuantifiers, IsMatchWithAlternation, LongestPath,
-                            IsPartialMatch, LiteralMatch, Search);
+                            IsPartialMatch, LiteralMatch, Search, SearchLongest);
 
 } // namespace Sregex::Automata

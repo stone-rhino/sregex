@@ -66,6 +66,9 @@ protected:
   void searchImpl(const char* input, size_t length, std::vector<MatchInfo>& matches,
                   bool anchored) const;
 
+  // Implementation of the searchLongest interface
+  bool searchLongestImpl(const char* input, size_t length, MatchInfo& matches) const;
+
   // Implementation of the toDot interface
   std::string toDotImpl() const;
 
